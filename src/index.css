@@ -1,0 +1,388 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════
+   INDIGO SLATE PROFESSIONAL — Design System by Stitch MCP
+   Light: calm #F8F9FA base, white cards, indigo accent
+   Dark:  #0F172A base, slate-800 cards, indigo accent
+═══════════════════════════════════════════════════════════ */
+
+/* ── LIGHT THEME (default) ─────────────────────────────── */
+:root,
+:root.light {
+  /* Surfaces — tonal layers (light = white/near-white) */
+  --surface:                  #F8F9FA;
+  --surface-lowest:           #FFFFFF;
+  --surface-low:              #F3F4F5;
+  --surface-container:        #EDEEEF;
+  --surface-container-high:   #E7E8E9;
+  --surface-container-highest:#E1E3E4;
+
+  /* Text */
+  --on-surface:               #191C1D;
+  --on-surface-variant:       #464555;
+  --muted:                    #777587;
+
+  /* Accent — ONE indigo, used sparingly */
+  --primary:                  #4F46E5;
+  --primary-dark:             #3525CD;
+  --primary-light:            #E2DFFF;
+  --primary-lighter:          #EEF2FF;
+  --on-primary:               #FFFFFF;
+
+  /* Secondary (slate-blue — for links, codes) */
+  --secondary:                #515F74;
+  --secondary-container:      #D5E3FD;
+
+  /* Status colors — muted/tonal only */
+  --success:                  #005338;
+  --success-bg:               #6FFBBE;
+  --success-text:             #005236;
+  --warning:                  #7C5800;
+  --warning-bg:               #FFF0C3;
+  --warning-text:             #7C5800;
+  --error:                    #BA1A1A;
+  --error-bg:                 #FFDAD6;
+  --error-text:               #93000A;
+  --info:                     #3525CD;
+  --info-bg:                  #E2DFFF;
+  --info-text:                #3323CC;
+
+  /* Borders — "ghost borders", felt not seen */
+  --border-color:             rgba(199, 196, 216, 0.35);
+  --border-strong:            rgba(199, 196, 216, 0.7);
+
+  /* Sidebar */
+  --sidebar-bg:               #FFFFFF;
+  --sidebar-border:           transparent;
+  --sidebar-text:             #334155;
+  --sidebar-text-muted:       #64748B;
+  --sidebar-user-bg:          #F3F4F5;
+
+  /* Header */
+  --header-bg:                #FFFFFF;
+  --header-border:            rgba(199, 196, 216, 0.3);
+
+  /* Cards & Panels */
+  --card-bg:                  #FFFFFF;
+  --welcome-bg:               #EEF2FF;
+  --welcome-border:           #C7C4D8;
+  --modal-bg:                 #FFFFFF;
+  --modal-overlay:            rgba(15, 23, 42, 0.4);
+  --input-bg:                 #FFFFFF;
+  --input-border:             rgba(199, 196, 216, 0.6);
+
+  /* Kanban */
+  --kanban-bg:                #F3F4F5;
+  --kanban-col-bg:            #F8F9FA;
+  --kanban-col-hover:         rgba(79, 70, 229, 0.03);
+  --kanban-card-bg:           #FFFFFF;
+  --kanban-card-dragging:     #E2DFFF;
+
+  /* Table */
+  --table-head-bg:            #F3F4F5;
+  --row-hover:                #F8F9FA;
+
+  /* Nav items */
+  --nav-item-color:           #64748B;
+  --nav-item-hover-bg:        #F3F4F5;
+  --nav-item-active-bg:       #EEF2FF;
+  --nav-item-active-color:    #4F46E5;
+  --nav-active-indicator:     #4F46E5;
+
+  /* Elevation */
+  --shadow-sm:                0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md:                0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg:                0 20px 40px rgba(15, 23, 42, 0.07);
+  --shadow:                   rgba(15, 23, 42, 0.06);
+}
+
+/* ── DARK THEME ────────────────────────────────────────── */
+:root.dark {
+  --surface:                  #0F172A;
+  --surface-lowest:           #0B1120;
+  --surface-low:              #131E35;
+  --surface-container:        #1E293B;
+  --surface-container-high:   #263044;
+  --surface-container-highest:#2D3A50;
+
+  --on-surface:               #E2E8F0;
+  --on-surface-variant:       #94A3B8;
+  --muted:                    #64748B;
+
+  --primary:                  #818CF8;
+  --primary-dark:             #6366F1;
+  --primary-light:            #1E1B4B;
+  --primary-lighter:          #1E1A3D;
+  --on-primary:               #FFFFFF;
+
+  --secondary:                #93C5FD;
+  --secondary-container:      #1E3A5F;
+
+  --success:                  #4ADE80;
+  --success-bg:               rgba(74,222,128,0.12);
+  --success-text:             #4ADE80;
+  --warning:                  #FCD34D;
+  --warning-bg:               rgba(252,211,77,0.12);
+  --warning-text:             #FCD34D;
+  --error:                    #FCA5A5;
+  --error-bg:                 rgba(252,165,165,0.12);
+  --error-text:               #FCA5A5;
+  --info:                     #A5B4FC;
+  --info-bg:                  rgba(165,180,252,0.12);
+  --info-text:                #A5B4FC;
+
+  --border-color:             rgba(255, 255, 255, 0.07);
+  --border-strong:            rgba(255, 255, 255, 0.12);
+
+  --sidebar-bg:               #1E293B;
+  --sidebar-border:           transparent;
+  --sidebar-text:             #CBD5E1;
+  --sidebar-text-muted:       #64748B;
+  --sidebar-user-bg:          rgba(255,255,255,0.04);
+
+  --header-bg:                #1E293B;
+  --header-border:            rgba(255,255,255,0.06);
+
+  --card-bg:                  #1E293B;
+  --welcome-bg:               #1E1A3D;
+  --welcome-border:           #4F46E5;
+  --modal-bg:                 #1E293B;
+  --modal-overlay:            rgba(0, 0, 0, 0.6);
+  --input-bg:                 #131E35;
+  --input-border:             rgba(255, 255, 255, 0.1);
+
+  --kanban-bg:                #0F172A;
+  --kanban-col-bg:            #131E35;
+  --kanban-col-hover:         rgba(129,140,248,0.05);
+  --kanban-card-bg:           #1E293B;
+  --kanban-card-dragging:     #263044;
+
+  --table-head-bg:            #131E35;
+  --row-hover:                rgba(255,255,255,0.02);
+
+  --nav-item-color:           #64748B;
+  --nav-item-hover-bg:        rgba(255,255,255,0.05);
+  --nav-item-active-bg:       rgba(129,140,248,0.12);
+  --nav-item-active-color:    #818CF8;
+  --nav-active-indicator:     #818CF8;
+
+  --shadow-sm:                0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md:                0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg:                0 20px 40px rgba(0, 0, 0, 0.4);
+  --shadow:                   rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════════ */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background 0.3s ease, color 0.2s ease;
+  }
+
+  /* Smooth theme transitions on non-animated elements */
+  *:not([class*="animate-"]) {
+    transition-property: background-color, border-color, color, box-shadow;
+    transition-duration: 0.2s;
+    transition-timing-function: ease;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface-container-high); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Section / page card ── */
+  .section-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ── 3D hover card — subtle lift only ── */
+  .card-3d {
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease, box-shadow 0.25s ease !important;
+  }
+  .card-3d:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg) !important;
+  }
+
+  /* ── Primary button (indigo gradient) ── */
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.125rem;
+    border-radius: 8px;
+    font-weight: 600; font-size: 0.875rem;
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    color: var(--on-primary);
+    border: none; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+
+  /* ── Secondary button ── */
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.125rem; border-radius: 8px;
+    font-weight: 500; font-size: 0.875rem;
+    background: var(--surface-container-high);
+    color: var(--on-surface);
+    border: none; cursor: pointer;
+    transition: background 0.15s ease !important;
+  }
+  .btn-secondary:hover { background: var(--surface-container-highest); }
+
+  /* ── Ghost button ── */
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.875rem; border-radius: 8px; font-size: 0.875rem;
+    color: var(--on-surface-variant); background: transparent; border: none; cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--surface-container); color: var(--on-surface); }
+
+  /* ── Destructive button ── */
+  .btn-danger {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1.125rem; border-radius: 8px;
+    font-weight: 500; font-size: 0.875rem;
+    background: var(--error-bg); color: var(--error-text);
+    border: 1px solid rgba(186, 26, 26, 0.15); cursor: pointer;
+  }
+  .btn-danger:hover { background: rgba(186,26,26,0.18); }
+
+  /* ── Input ── */
+  .input-field {
+    width: 100%; border-radius: 8px; padding: 0.625rem 0.875rem;
+    color: var(--on-surface); font-size: 0.875rem; outline: none;
+    background: var(--input-bg); border: 1px solid var(--input-border);
+  }
+  .input-field:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  }
+  .input-field::placeholder { color: var(--muted); }
+  select.input-field { cursor: pointer; }
+
+  /* ── Status badges — tonal, not saturated ── */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 0.2rem 0.625rem; border-radius: 9999px;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  /* Light mode tonal badges */
+  .badge-success  { background: var(--success-bg);  color: var(--success-text);  }
+  .badge-warning  { background: var(--warning-bg);  color: var(--warning-text);  }
+  .badge-error    { background: var(--error-bg);    color: var(--error-text);    }
+  .badge-info     { background: var(--info-bg);     color: var(--info-text);     }
+  .badge-neutral  { background: var(--surface-container-high); color: var(--muted); }
+
+  /* ── Data table ── */
+  .table-container { width: 100%; overflow-x: auto; }
+  .data-table {
+    width: 100%; font-size: 0.875rem;
+    border-collapse: separate; border-spacing: 0;
+  }
+  .data-table th {
+    padding: 0.625rem 1rem; text-align: left;
+    font-size: 0.6875rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); background: var(--table-head-bg);
+    white-space: nowrap;
+  }
+  .data-table td {
+    padding: 0.875rem 1rem;
+    color: var(--on-surface);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--row-hover); }
+
+  /* ── Sidebar nav items ── */
+  .nav-item {
+    display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.875rem;
+    border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer;
+    position: relative; color: var(--nav-item-color);
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--nav-item-hover-bg); color: var(--sidebar-text); }
+  .nav-item.active {
+    background: var(--nav-item-active-bg);
+    color: var(--nav-item-active-color);
+    font-weight: 600;
+  }
+  .nav-item.active::before {
+    content: ''; position: absolute; left: 0; top: 20%; height: 60%; width: 3px;
+    background: var(--nav-active-indicator); border-radius: 0 3px 3px 0;
+  }
+
+  /* ── Glassmorphism (modals, tooltips) ── */
+  .glass-card {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+  }
+  :root.dark .glass-card { background: rgba(30, 41, 59, 0.8); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════ */
+@layer utilities {
+  .shadow-ambient { box-shadow: var(--shadow-lg); }
+  .text-on-surface { color: var(--on-surface); }
+  .text-on-surface-variant { color: var(--on-surface-variant); }
+  .text-muted { color: var(--muted); }
+  .text-primary { color: var(--primary); }
+  .text-secondary { color: var(--secondary); }
+  .text-error { color: var(--error-text); }
+  .text-success { color: var(--success); }
+  .bg-surface { background: var(--surface); }
+  .bg-card { background: var(--card-bg); }
+
+  /* Orb for dashboard bg */
+  .orb {
+    position: absolute; border-radius: 50%;
+    filter: blur(80px); opacity: 0.07; pointer-events: none;
+  }
+  :root.dark .orb { opacity: 0.08; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════════════════ */
+@keyframes fadeIn  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes float   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes spin    { to {transform:rotate(360deg)} }
+
+.animate-fade-in    { animation: fadeIn 0.25s ease-out forwards; }
+.animate-float      { animation: float 5s ease-in-out infinite; }
+.animate-float-slow { animation: float 7s ease-in-out infinite; }
+.animate-spin       { animation: spin 1s linear infinite; }
