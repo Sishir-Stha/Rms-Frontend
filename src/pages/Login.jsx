@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Wrench, Eye, EyeOff, Shield, BarChart3, Monitor, ArrowRight } from 'lucide-react'
+import { Wrench, Eye, EyeOff, Users, BarChart3, Monitor, ArrowRight } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
@@ -21,8 +21,8 @@ export default function Login() {
   }
 
   const fillDemo = () => {
-    setEmail('admin@repairms.com')
-    setPassword('admin123')
+    setEmail('user@repairms.com')
+    setPassword('user123')
     setError('')
   }
 
@@ -66,7 +66,7 @@ export default function Login() {
               { icon: Wrench, text: 'Full lifecycle repair tracking' },
               { icon: Monitor, text: 'Device request management' },
               { icon: BarChart3, text: 'Analytics & reporting suite' },
-              { icon: Shield, text: 'Role-based access control' },
+              { icon: Users, text: 'User & team management' },
             ].map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-3 glass-card px-4 py-2.5">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -107,7 +107,7 @@ export default function Login() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="input-field"
-                  placeholder="admin@repairms.com"
+                  placeholder="user@repairms.com"
                   required
                   autoComplete="email"
                 />
@@ -158,11 +158,11 @@ export default function Login() {
               <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'rgba(98,223,125,0.06)', border: '1px solid rgba(98,223,125,0.15)' }}>
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">Email</span>
-                  <code className="text-primary">admin@repairms.com</code>
+                  <code className="text-primary">user@repairms.com</code>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">Password</span>
-                  <code className="text-primary">admin123</code>
+                  <code className="text-primary">user123</code>
                 </div>
               </div>
               <button onClick={fillDemo} id="use-demo-btn"

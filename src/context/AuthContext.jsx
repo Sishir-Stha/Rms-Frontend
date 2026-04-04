@@ -3,15 +3,14 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 const AuthContext = createContext(null)
 
 const DEMO_CREDENTIALS = {
-  email: 'admin@repairms.com',
-  password: 'admin123',
+  email: 'user@repairms.com',
+  password: 'user123',
   user: {
     id: 1,
-    name: 'Admin User',
-    email: 'admin@repairms.com',
-    role: 'Administrator',
+    name: 'System User',
+    email: 'user@repairms.com',
     department: 'IT',
-    avatar: 'AU',
+    avatar: 'SU',
   }
 }
 

@@ -3,14 +3,14 @@
 // ============================================================
 
 export const USERS = [
-  { id: 1, name: 'Admin User', email: 'admin@repairms.com', role: 'Administrator', department: 'IT', status: 'Active', avatar: 'AU', joinDate: '2023-01-15' },
-  { id: 2, name: 'Sarah Mitchell', email: 'sarah.m@repairms.com', role: 'IT Staff', department: 'IT', status: 'Active', avatar: 'SM', joinDate: '2023-03-20' },
-  { id: 3, name: 'James Rodriguez', email: 'james.r@repairms.com', role: 'Technician', department: 'IT', status: 'Active', avatar: 'JR', joinDate: '2023-05-10' },
-  { id: 4, name: 'Emily Chen', email: 'emily.c@repairms.com', role: 'Employee', department: 'Finance', status: 'Active', avatar: 'EC', joinDate: '2023-06-01' },
-  { id: 5, name: 'Michael Torres', email: 'michael.t@repairms.com', role: 'Technician', department: 'IT', status: 'Active', avatar: 'MT', joinDate: '2023-07-15' },
-  { id: 6, name: 'Lisa Park', email: 'lisa.p@repairms.com', role: 'Employee', department: 'HR', status: 'Active', avatar: 'LP', joinDate: '2023-08-20' },
-  { id: 7, name: 'David Kim', email: 'david.k@repairms.com', role: 'IT Staff', department: 'IT', status: 'Active', avatar: 'DK', joinDate: '2023-09-05' },
-  { id: 8, name: 'Priya Patel', email: 'priya.p@repairms.com', role: 'Employee', department: 'Operations', status: 'Active', avatar: 'PP', joinDate: '2024-01-10' },
+  { id: 1, name: 'System User', email: 'user@repairms.com', department: 'IT', status: 'Active', avatar: 'SU', joinDate: '2023-01-15' },
+  { id: 2, name: 'Sarah Mitchell', email: 'sarah.m@repairms.com', department: 'IT', status: 'Active', avatar: 'SM', joinDate: '2023-03-20' },
+  { id: 3, name: 'James Rodriguez', email: 'james.r@repairms.com', department: 'IT', status: 'Active', avatar: 'JR', joinDate: '2023-05-10' },
+  { id: 4, name: 'Emily Chen', email: 'emily.c@repairms.com', department: 'Finance', status: 'Active', avatar: 'EC', joinDate: '2023-06-01' },
+  { id: 5, name: 'Michael Torres', email: 'michael.t@repairms.com', department: 'IT', status: 'Active', avatar: 'MT', joinDate: '2023-07-15' },
+  { id: 6, name: 'Lisa Park', email: 'lisa.p@repairms.com', department: 'HR', status: 'Active', avatar: 'LP', joinDate: '2023-08-20' },
+  { id: 7, name: 'David Kim', email: 'david.k@repairms.com', department: 'IT', status: 'Active', avatar: 'DK', joinDate: '2023-09-05' },
+  { id: 8, name: 'Priya Patel', email: 'priya.p@repairms.com', department: 'Operations', status: 'Active', avatar: 'PP', joinDate: '2024-01-10' },
 ]
 
 export const VENDORS = [

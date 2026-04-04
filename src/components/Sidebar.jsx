@@ -85,7 +85,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
             </div>
             <div className="overflow-hidden">
               <p className="text-xs font-semibold truncate" style={{ color: 'var(--sidebar-text)' }}>{currentUser?.name}</p>
-              <p className="text-xs truncate" style={{ color: 'var(--primary)' }}>Administrator</p>
+              <p className="text-xs truncate" style={{ color: 'var(--primary)' }}>{currentUser?.department || 'IT'}</p>
             </div>
           </div>
         </div>

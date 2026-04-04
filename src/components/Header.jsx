@@ -136,7 +136,6 @@ export default function Header({ onMenuClick }) {
             <div className="pb-3 mb-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
               <p className="text-sm font-semibold" style={{ color: 'var(--on-surface)' }}>{currentUser?.name}</p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{currentUser?.email}</p>
-              <span className="badge badge-info mt-2">Administrator</span>
             </div>
             <button
               onClick={logout}
