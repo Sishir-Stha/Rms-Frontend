@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
-import { BarChart3, FileText, Users, Package, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+import { BarChart3, FileText, Users, ArrowLeft, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, LineChart, Line, Legend
 } from 'recharts'
 import {
   MONTHLY_REPAIRS, DEPARTMENT_REQUESTS_DATA, TECHNICIAN_PERFORMANCE,
-  DEVICE_CATEGORY_DATA, REPAIRS, DEVICE_REQUESTS, ASSETS
+  DEVICE_CATEGORY_DATA, REPAIRS, DEVICE_REQUESTS
 } from '../data/dummyData'
 import StatusBadge from '../components/StatusBadge'
 
@@ -37,15 +37,6 @@ const REPORT_LIST = [
     color: '#f59e0b',
     lastGenerated: 'Mar 21, 2026',
     records: TECHNICIAN_PERFORMANCE.length,
-  },
-  {
-    id: 'asset-inventory',
-    title: 'Asset Inventory Report',
-    description: 'Complete device inventory by category with condition, count, and maintenance schedule.',
-    icon: Package,
-    color: '#bac5ee',
-    lastGenerated: 'Mar 20, 2026',
-    records: ASSETS.length,
   },
 ]
 
@@ -197,64 +188,10 @@ function TechnicianReport() {
   )
 }
 
-function AssetInventoryReport() {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="section-card">
-          <h4 className="font-semibold text-sm text-on-surface mb-4">Device Category Distribution</h4>
-          <ResponsiveContainer width="100%" height={180}>
-            <PieChart>
-              <Pie data={DEVICE_CATEGORY_DATA} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value" stroke="none">
-                {DEVICE_CATEGORY_DATA.map((e,i) => <Cell key={i} fill={e.fill}/>)}
-              </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: '11px', color: '#879485' }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="section-card grid grid-cols-2 gap-3 content-start">
-          {DEVICE_CATEGORY_DATA.map(d => (
-            <div key={d.name} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: `${d.fill}10` }}>
-              <span className="w-3 h-3 rounded-full" style={{ background: d.fill }} />
-              <div>
-                <p className="text-xs font-semibold text-on-surface">{d.name}</p>
-                <p className="text-lg font-bold" style={{ color: d.fill }}>{d.value}%</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="section-card">
-        <h4 className="font-semibold text-sm text-on-surface mb-4">Asset Inventory Table</h4>
-        <table className="data-table w-full">
-          <thead><tr><th>Asset ID</th><th>Asset Group</th><th>Category</th><th>Count</th><th>Avg Age</th><th>Condition</th><th>Next Maintenance</th></tr></thead>
-          <tbody>
-            {ASSETS.map(a => (
-              <tr key={a.id}>
-                <td><code className="text-secondary text-xs">{a.id}</code></td>
-                <td className="font-medium text-on-surface text-sm">{a.name}</td>
-                <td className="text-on-surface-variant text-sm">{a.category}</td>
-                <td className="font-semibold text-on-surface">{a.count}</td>
-                <td className="text-on-surface-variant text-sm">{a.avgAge}</td>
-                <td>
-                  <span className={`badge ${a.condition === 'Excellent' ? 'badge-success' : a.condition === 'Good' ? 'badge-info' : a.condition === 'Fair' ? 'badge-warning' : 'badge-error'}`}>{a.condition}</span>
-                </td>
-                <td className="text-xs text-on-surface-variant">{a.nextMaint}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
 const REPORT_COMPONENTS = {
   'monthly-repair': MonthlyRepairReport,
   'device-request': DeviceRequestReport,
   'technician-performance': TechnicianReport,
-  'asset-inventory': AssetInventoryReport,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

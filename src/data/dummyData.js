@@ -149,11 +149,4 @@ export const DASHBOARD_METRICS = {
   resolvedTrend: +20.0,
 }
 
-export const ASSETS = [
-  { id: 'AST-001', name: 'Dell Inspiron Series', category: 'Laptops', count: 18, avgAge: '2.3 yrs', condition: 'Good', nextMaint: '2026-06-01' },
-  { id: 'AST-002', name: 'HP LaserJet Pro Series', category: 'Printers', count: 8, avgAge: '3.1 yrs', condition: 'Fair', nextMaint: '2026-04-15' },
-  { id: 'AST-003', name: 'iPhone Fleet', category: 'Mobile Phones', count: 12, avgAge: '1.5 yrs', condition: 'Excellent', nextMaint: '2026-08-01' },
-  { id: 'AST-004', name: 'Cisco Network Equipment', category: 'Network', count: 22, avgAge: '4.2 yrs', condition: 'Poor', nextMaint: '2026-03-30' },
-  { id: 'AST-005', name: 'Dell OptiPlex Desktops', category: 'Desktops', count: 15, avgAge: '2.8 yrs', condition: 'Good', nextMaint: '2026-05-20' },
-  { id: 'AST-006', name: 'Samsung Galaxy Tabs', category: 'Tablets', count: 6, avgAge: '1.2 yrs', condition: 'Excellent', nextMaint: '2026-09-01' },
-]
+
