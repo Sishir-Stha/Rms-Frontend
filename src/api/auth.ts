@@ -43,6 +43,8 @@ export const login = async (credentials: LoginRequest): Promise<LoginResponse> =
   return data
 }
 
+export const loginApi = login
+
 // Helper function to get stored user data from anywhere in the app
 export const getStoredUserData = (): UserData | null => {
   const userData = localStorage.getItem('userData')
