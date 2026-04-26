@@ -1,13 +1,26 @@
 import type { Priority, RepairKanbanColumn, RepairStatus } from '../types/app'
 import type {
+  CreateRepairPayload,
   FetchRepairsFilters,
   MoveRepairApiResponse,
+  RepairDetailApiItem,
+  RepairDetailApiResponse,
+  RepairDetailItem,
   RepairListApiItem,
-  RepairListApiResponse,
   RepairListItem,
+  UpdateRepairPayload,
 } from '../types/repair.types'
 
 const API_BASE_URL = 'http://localhost:4000/api/v1'
+const LOAD_REPAIRS_ERROR_MESSAGE = 'Unable to load repairs right now.'
+const LOAD_REPAIR_DETAIL_ERROR_MESSAGE = 'Unable to load repair detail right now.'
+const REPAIRS_SYNC_EVENT = 'repairs:changed'
+
+interface RepairsPayloadEnvelope {
+  success?: boolean
+  message?: string
+  data?: unknown
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
@@ -27,7 +40,7 @@ const isRepairListApiItem = (value: unknown): value is RepairListApiItem => {
     (typeof value.notes === 'string' || value.notes === null) &&
     typeof value.user_name === 'string' &&
     typeof value.vendor_name === 'string' &&
-    typeof value.status === 'string' &&
+    (typeof value.status === 'string' || value.status === null) &&
     typeof value.priority === 'string' &&
     (typeof value.expected_completion === 'string' ||
       value.expected_completion === null) &&
@@ -37,13 +50,38 @@ const isRepairListApiItem = (value: unknown): value is RepairListApiItem => {
   )
 }
 
-const isRepairListApiResponse = (value: unknown): value is RepairListApiResponse => {
-  if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.data.result)) {
+const isRepairDetailApiItem = (value: unknown): value is RepairDetailApiItem => {
+  if (!isRecord(value)) {
     return false
   }
 
-  return value.data.result.every(isRepairListApiItem)
+  return (
+    typeof value.repair_id === 'number' &&
+    typeof value.device_name === 'string' &&
+    typeof value.category_id === 'number' &&
+    typeof value.serial_no === 'string' &&
+    typeof value.department_id === 'number' &&
+    typeof value.issue === 'string' &&
+    (typeof value.notes === 'string' || value.notes === null) &&
+    typeof value.reported_by === 'number' &&
+    typeof value.reported_date === 'string' &&
+    typeof value.vendor_id === 'number' &&
+    (typeof value.status === 'string' || value.status === null) &&
+    typeof value.priority === 'string' &&
+    (typeof value.expected_completion === 'string' ||
+      value.expected_completion === null) &&
+    (typeof value.resolved_date === 'string' || value.resolved_date === null) &&
+    typeof value.costs === 'string' &&
+    (typeof value.kanban_column === 'string' || value.kanban_column === null) &&
+    typeof value.created_at === 'string' &&
+    typeof value.updated_at === 'string'
+  )
 }
+
+const isRepairDetailApiResponse = (value: unknown): value is RepairDetailApiResponse =>
+  isRecord(value) &&
+  isRecord(value.data) &&
+  isRepairDetailApiItem(value.data.result)
 
 const isMoveRepairApiResponse = (value: unknown): value is MoveRepairApiResponse =>
   isRecord(value) &&
@@ -51,11 +89,92 @@ const isMoveRepairApiResponse = (value: unknown): value is MoveRepairApiResponse
   typeof value.message === 'string' &&
   isRecord(value.data)
 
+const emitRepairsChanged = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(REPAIRS_SYNC_EVENT))
+  }
+}
+
+export const subscribeToRepairsChanged = (callback: () => void): (() => void) => {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+
+  const listener = () => callback()
+  window.addEventListener(REPAIRS_SYNC_EVENT, listener)
+
+  return () => {
+    window.removeEventListener(REPAIRS_SYNC_EVENT, listener)
+  }
+}
+
+const isArrayOfRepairListItems = (value: unknown): value is RepairListApiItem[] =>
+  Array.isArray(value) && value.every(isRepairListApiItem)
+
+const extractRepairListItems = (payload: unknown): RepairListApiItem[] | null => {
+  if (isArrayOfRepairListItems(payload)) {
+    return payload
+  }
+
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  const envelope = payload as RepairsPayloadEnvelope
+
+  if (isArrayOfRepairListItems(envelope.data)) {
+    return envelope.data
+  }
+
+  if (isRecord(envelope.data) && isArrayOfRepairListItems(envelope.data.result)) {
+    return envelope.data.result
+  }
+
+  return null
+}
+
+const isNoRepairsPayload = (payload: unknown): boolean => {
+  if (!isRecord(payload)) {
+    return false
+  }
+
+  const envelope = payload as RepairsPayloadEnvelope
+  const message =
+    typeof envelope.message === 'string' ? envelope.message.trim().toLowerCase() : ''
+
+  if (message.includes('no repairs found')) {
+    return true
+  }
+
+  if (Array.isArray(envelope.data)) {
+    return envelope.data.length === 0
+  }
+
+  if (isRecord(envelope.data)) {
+    if (isArrayOfRepairListItems(envelope.data.result)) {
+      return envelope.data.result.length === 0
+    }
+
+    return Object.keys(envelope.data).length === 0
+  }
+
+  return envelope.data === undefined || envelope.data === null
+}
+
 const formatRepairDisplayId = (repairId: number): string =>
   `REP-${String(repairId).padStart(3, '0')}`
 
-const normalizeRepairStatus = (status: string): RepairStatus => {
-  switch (status.trim().toLowerCase()) {
+const normalizeRepairStatus = (
+  status: string | null | undefined,
+  kanbanColumn?: string | null,
+): RepairStatus => {
+  const normalizedStatus = status?.trim().toLowerCase()
+  const normalizedColumn = kanbanColumn?.trim().toLowerCase()
+
+  switch (normalizedStatus) {
+    case 'open':
+      return 'Open'
+    case 'inprogress':
     case 'in progress':
       return 'In Progress'
     case 'resolved':
@@ -68,10 +187,26 @@ const normalizeRepairStatus = (status: string): RepairStatus => {
       return 'Closed'
     case 'cancelled':
     case 'canceled':
-      return 'Cancelled'
+      return 'Closed'
     case 'pending':
+      return 'Open'
     default:
-      return 'Pending'
+      switch (normalizedColumn) {
+        case 'open':
+        case 'backlog':
+          return 'Open'
+        case 'inprogress':
+        case 'in progress':
+          return 'In Progress'
+        case 'resolved':
+        case 'under review':
+          return 'Resolved'
+        case 'closed':
+        case 'completed':
+          return 'Closed'
+        default:
+          return 'Open'
+      }
   }
 }
 
@@ -94,47 +229,25 @@ const normalizeKanbanColumn = (
   status: RepairStatus,
 ): RepairKanbanColumn => {
   switch (kanbanColumn?.trim().toLowerCase()) {
+    case 'open':
+    case 'backlog':
+      return 'Open'
+    case 'inprogress':
     case 'in progress':
       return 'In Progress'
     case 'resolved':
-      return 'Resolved'
-    case 'closed':
-      return 'Closed'
     case 'under review':
       return 'Resolved'
+    case 'closed':
     case 'completed':
       return 'Closed'
-    case 'backlog':
-      return 'Backlog'
     default:
-      switch (status) {
-        case 'In Progress':
-          return 'In Progress'
-        case 'Resolved':
-        case 'Under Review':
-          return 'Resolved'
-        case 'Closed':
-        case 'Completed':
-          return 'Closed'
-        default:
-          return 'Backlog'
-      }
-  }
-}
-
-const toApiKanbanColumn = (kanbanColumn: RepairKanbanColumn): string => {
-  switch (kanbanColumn) {
-    case 'Under Review':
-      return 'Resolved'
-    case 'Completed':
-      return 'Closed'
-    default:
-      return kanbanColumn
+      return status
   }
 }
 
 const mapRepairListItem = (repair: RepairListApiItem): RepairListItem => {
-  const normalizedStatus = normalizeRepairStatus(repair.status)
+  const normalizedStatus = normalizeRepairStatus(repair.status, repair.kanban_column)
 
   return {
     repairId: repair.repair_id,
@@ -153,6 +266,40 @@ const mapRepairListItem = (repair: RepairListApiItem): RepairListItem => {
     resolvedDate: repair.resolved_date,
     cost: Number.parseFloat(repair.costs) || 0,
     kanbanColumn: normalizeKanbanColumn(repair.kanban_column, normalizedStatus),
+  }
+}
+
+const mapRepairDetailItem = (repair: RepairDetailApiItem): RepairDetailItem => {
+  const normalizedStatus = normalizeRepairStatus(repair.status, repair.kanban_column)
+
+  return {
+    repairId: repair.repair_id,
+    id: formatRepairDisplayId(repair.repair_id),
+    device: repair.device_name,
+    categoryId: repair.category_id,
+    serialNo: repair.serial_no,
+    departmentId: repair.department_id,
+    issue: repair.issue,
+    notes: repair.notes ?? '',
+    reportedById: repair.reported_by,
+    reportedDate: repair.reported_date,
+    vendorId: repair.vendor_id,
+    status: normalizedStatus,
+    priority: normalizePriority(repair.priority),
+    expectedCompletion: repair.expected_completion,
+    resolvedDate: repair.resolved_date,
+    cost: Number.parseFloat(repair.costs) || 0,
+    kanbanColumn: normalizeKanbanColumn(repair.kanban_column, normalizedStatus),
+    createdAt: repair.created_at,
+    updatedAt: repair.updated_at,
+  }
+}
+
+const parseJsonResponse = async (response: Response): Promise<unknown> => {
+  try {
+    return await response.json()
+  } catch {
+    return null
   }
 }
 
@@ -183,20 +330,53 @@ export async function fetchRepairs(
     signal,
   })
 
+  const payload = await parseJsonResponse(response)
+
   if (!response.ok) {
-    const errorBody = await readErrorBody(response)
-    throw new Error(
-      errorBody || `Failed to load repairs (${response.status})`,
-    )
+    if (isNoRepairsPayload(payload)) {
+      return []
+    }
+
+    throw new Error(LOAD_REPAIRS_ERROR_MESSAGE)
+  }
+
+  const repairs = extractRepairListItems(payload)
+
+  if (repairs) {
+    return repairs.map(mapRepairListItem)
+  }
+
+  if (isNoRepairsPayload(payload)) {
+    return []
+  }
+
+  throw new Error(LOAD_REPAIRS_ERROR_MESSAGE)
+}
+
+export async function fetchRepairById(
+  repairId: number,
+  signal?: AbortSignal,
+): Promise<RepairDetailItem> {
+  const response = await fetch(`${API_BASE_URL}/repairs/${repairId}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(LOAD_REPAIR_DETAIL_ERROR_MESSAGE)
   }
 
   const payload: unknown = await response.json()
 
-  if (!isRepairListApiResponse(payload)) {
-    throw new Error('Repairs response is invalid')
+  if (!isRepairDetailApiResponse(payload)) {
+    throw new Error(LOAD_REPAIR_DETAIL_ERROR_MESSAGE)
   }
 
-  return payload.data.result.map(mapRepairListItem)
+  return mapRepairDetailItem(payload.data.result)
 }
 
 export async function deleteRepairById(repairId: number): Promise<void> {
@@ -214,6 +394,32 @@ export async function deleteRepairById(repairId: number): Promise<void> {
       errorBody || `Failed to delete repair (${response.status})`,
     )
   }
+
+  emitRepairsChanged()
+}
+
+export async function updateRepairById(
+  repairId: number,
+  payload: UpdateRepairPayload,
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/repairs/${repairId}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorBody = await readErrorBody(response)
+    throw new Error(
+      errorBody || `Failed to update repair (${response.status})`,
+    )
+  }
+
+  emitRepairsChanged()
 }
 
 export async function moveRepairCard(
@@ -228,7 +434,7 @@ export async function moveRepairCard(
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      kanban_column: toApiKanbanColumn(kanbanColumn),
+      kanban_column: kanbanColumn,
     }),
   })
 
@@ -239,9 +445,70 @@ export async function moveRepairCard(
     )
   }
 
-  const payload: unknown = await response.json()
+  const payload = await parseJsonResponse(response)
 
-  if (!isMoveRepairApiResponse(payload)) {
+  if (payload === null) {
+    emitRepairsChanged()
+    return
+  }
+
+  if (isMoveRepairApiResponse(payload)) {
+    emitRepairsChanged()
+    return
+  }
+
+  if (isRecord(payload) && payload.success === false) {
     throw new Error('Move repair response is invalid')
   }
+
+  emitRepairsChanged()
+}
+
+const extractCreatedRepairId = (payload: unknown): number | null => {
+  if (!isRecord(payload)) {
+    return null
+  }
+
+  if (typeof payload.repair_id === 'number') {
+    return payload.repair_id
+  }
+
+  if (isRecord(payload.data)) {
+    if (typeof payload.data.repair_id === 'number') {
+      return payload.data.repair_id
+    }
+
+    if (isRecord(payload.data.result) && typeof payload.data.result.repair_id === 'number') {
+      return payload.data.result.repair_id
+    }
+  }
+
+  return null
+}
+
+export async function createRepairEntry(
+  payload: CreateRepairPayload,
+): Promise<number | null> {
+  const response = await fetch(`${API_BASE_URL}/repairs`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const parsedPayload = await parseJsonResponse(response)
+
+  if (!response.ok) {
+    const errorBody = await readErrorBody(response)
+    throw new Error(
+      errorBody || `Failed to create repair (${response.status})`,
+    )
+  }
+
+  emitRepairsChanged()
+
+  return extractCreatedRepairId(parsedPayload)
 }

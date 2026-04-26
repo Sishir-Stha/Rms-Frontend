@@ -46,13 +46,14 @@ interface StatusConfigItem<TName extends string> {
 type UserFormState = Pick<AppUser, 'name' | 'email' | 'department' | 'status'>
 
 const REPAIR_STATUSES: StatusConfigItem<RepairStatus>[] = [
-  { name: 'Pending', description: 'Ticket submitted, not yet assigned', color: '#f59e0b' },
+  { name: 'Open', description: 'Ticket submitted and ready to be worked on', color: '#f59e0b' },
   { name: 'In Progress', description: 'Actively being worked on by a technician', color: '#adc6ff' },
-  { name: 'Under Review', description: 'Repair done, awaiting quality check', color: '#879485' },
-  { name: 'Completed', description: 'Fully resolved and closed', color: '#62df7d' },
+  { name: 'Resolved', description: 'Repair completed and awaiting closure confirmation', color: '#879485' },
+  { name: 'Closed', description: 'Fully resolved and closed', color: '#62df7d' },
 ]
 
 const REQUEST_STATUSES: StatusConfigItem<RequestApprovalStatus>[] = [
+  { name: 'Requested', description: 'Submitted and awaiting workflow triage', color: '#bac5ee' },
   { name: 'Pending', description: 'Awaiting admin review', color: '#f59e0b' },
   { name: 'Approved', description: 'Request approved for procurement', color: '#62df7d' },
   { name: 'Rejected', description: 'Request declined with reason', color: '#ffb4ab' },

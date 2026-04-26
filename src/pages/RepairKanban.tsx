@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../context/ToastContext'
-import { fetchRepairs, moveRepairCard } from '../services/repair.service'
+import {
+  fetchRepairs,
+  moveRepairCard,
+  subscribeToRepairsChanged,
+} from '../services/repair.service'
 import type { RepairKanbanColumn, RepairStatus } from '../types/app'
 import type { RepairListItem } from '../types/repair.types'
 
@@ -23,7 +27,7 @@ interface ConfirmState {
 }
 
 const COLUMNS: KanbanColumn[] = [
-  { id: 'Backlog', label: 'Backlog', color: '#879485' },
+  { id: 'Open', label: 'Open', color: '#879485' },
   { id: 'In Progress', label: 'In Progress', color: '#3b82f6' },
   { id: 'Resolved', label: 'Resolved', color: '#f59e0b' },
   { id: 'Closed', label: 'Closed', color: '#16a34a' },
@@ -31,20 +35,22 @@ const COLUMNS: KanbanColumn[] = [
 
 const getStatusFromColumn = (column: RepairKanbanColumn): RepairStatus => {
   switch (column) {
+    case 'Open':
+      return 'Open'
     case 'In Progress':
       return 'In Progress'
     case 'Resolved':
       return 'Resolved'
     case 'Closed':
       return 'Closed'
-    case 'Backlog':
     default:
-      return 'Pending'
+      return 'Open'
   }
 }
 
 export default function RepairKanban() {
   const { showToast } = useToast()
+  const navigate = useNavigate()
   const [cards, setCards] = useState<RepairKanbanCard[]>([])
   const [dragging, setDragging] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<RepairKanbanColumn | null>(null)
@@ -52,6 +58,14 @@ export default function RepairKanban() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const unsubscribe = subscribeToRepairsChanged(() => {
+      setRefreshKey((currentValue) => currentValue + 1)
+    })
+
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -73,7 +87,7 @@ export default function RepairKanban() {
           setCards(
             response.map((repair) => ({
               ...repair,
-              col: repair.kanbanColumn || 'Backlog',
+              col: repair.kanbanColumn || 'Open',
             })),
           )
         }
@@ -196,15 +210,6 @@ export default function RepairKanban() {
             Backend-driven repair board grouped by kanban column
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setRefreshKey((currentValue) => currentValue + 1)}
-          className="btn-secondary flex items-center gap-2"
-          disabled={isLoading}
-        >
-          <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
       </div>
 
       {isLoading ? (
@@ -227,6 +232,12 @@ export default function RepairKanban() {
           >
             Retry
           </button>
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="section-card flex flex-col items-center justify-center min-h-[360px] text-center px-6">
+          <p className="text-base font-semibold text-on-surface">
+            No records found for this status
+          </p>
         </div>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 200px)' }}>
@@ -278,7 +289,9 @@ export default function RepairKanban() {
                     key={card.repairId}
                     draggable
                     onDragStart={() => onDragStart(card.id)}
+                    onClick={() => navigate(`/repairs/${card.repairId}`)}
                     className="rounded-xl p-3 cursor-grab active:cursor-grabbing select-none"
+                    title="Open repair detail"
                     style={{
                       background:
                         dragging === card.id

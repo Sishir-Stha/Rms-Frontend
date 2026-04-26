@@ -86,6 +86,22 @@ export interface DeletedUser {
   created_at: string
 }
 
+export interface SingleUserResponse {
+  success: boolean
+  message: string
+  data: {
+    result: {
+      user_id: number
+      user_name: string
+      email: string
+      password: string
+      department_id: number
+      status: string
+      join_date: string
+      created_at: string
+    }
+  }
+}
 export interface DeleteUserResponse {
   success: boolean
   message: string
@@ -110,6 +126,21 @@ export const getUsers = async (): Promise<UsersResponse> => {
   return response.json()
 }
 
+
+export const getUserById = async (user_id: number): Promise<SingleUserResponse> => {
+  const response = await fetch(`${API_BASE_URL}/users/${user_id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch user')
+  }
+
+  return response.json()
+}
 
 
 export const createUser = async (userData: CreateUserRequest): Promise<CreateUserResponse> => {

@@ -1,14 +1,12 @@
-import { useState, type ChangeEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle,
   ArrowLeft,
   Building,
   Calendar,
-  ChevronRight,
   Clock,
   DollarSign,
-  FileText,
   Hash,
   MapPin,
   Save,
@@ -20,10 +18,39 @@ import {
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../context/ToastContext'
-import { REPAIRS, VENDORS } from '../data/dummyData'
-import type { Priority, RepairRecord, RepairStatus } from '../types/app'
+import { fetchDeviceCategories } from '../services/device_categories.service'
+import { fetchDepartments } from '../services/departments.service'
+import { fetchRepairById, updateRepairById } from '../services/repair.service'
+import { fetchUsers } from '../services/user.service'
+import { fetchVendors } from '../services/vendors.service'
+import type { Priority, RepairKanbanColumn, RepairStatus } from '../types/app'
+import type {
+  RepairCategoryOption,
+  RepairDepartmentOption,
+  RepairDetailItem,
+  RepairUserOption,
+  RepairVendorOption,
+} from '../types/repair.types'
 
-type RepairDetailForm = Omit<RepairRecord, 'notes'> & { notes: string }
+interface RepairDetailFormState {
+  repairId: number
+  id: string
+  deviceName: string
+  categoryId: number
+  serialNo: string
+  departmentId: number
+  issue: string
+  notes: string
+  reportedById: number
+  reportedDate: string
+  vendorId: number
+  status: RepairStatus
+  priority: Priority
+  expectedCompletion: string
+  resolvedDate: string
+  cost: number
+  kanbanColumn: RepairKanbanColumn
+}
 
 interface InfoRowProps {
   icon: LucideIcon
@@ -43,14 +70,43 @@ interface TimelineEventProps extends TimelineItem {
 
 const FIELD_LABEL = 'block text-xs font-semibold uppercase tracking-wider mb-1.5'
 const SECTION_TITLE = 'flex items-center gap-2 font-semibold text-sm mb-4'
-const REPAIR_STATUSES: RepairStatus[] = ['Pending', 'In Progress', 'Under Review', 'Completed']
+const REPAIR_STATUSES: RepairStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed']
 const PRIORITIES: Priority[] = ['Critical', 'High', 'Medium', 'Low']
 
-let repairsStore: RepairRecord[] = [...REPAIRS]
+const formatDateInputValue = (value: string | null): string =>
+  value ? value.slice(0, 10) : ''
 
-const createRepairForm = (repair: RepairRecord): RepairDetailForm => ({
-  ...repair,
-  notes: repair.notes ?? '',
+const toNullableDate = (value: string): string | null => (value.trim() === '' ? null : value)
+
+const parseRepairId = (value: string | undefined): number | null => {
+  if (!value) {
+    return null
+  }
+
+  const parsedValue = Number(value)
+  return Number.isInteger(parsedValue) ? parsedValue : null
+}
+
+const createRepairFormState = (
+  repair: RepairDetailItem,
+): RepairDetailFormState => ({
+  repairId: repair.repairId,
+  id: repair.id,
+  deviceName: repair.device,
+  categoryId: repair.categoryId,
+  serialNo: repair.serialNo,
+  departmentId: repair.departmentId,
+  issue: repair.issue,
+  notes: repair.notes,
+  reportedById: repair.reportedById,
+  reportedDate: formatDateInputValue(repair.reportedDate),
+  vendorId: repair.vendorId,
+  status: repair.status,
+  priority: repair.priority,
+  expectedCompletion: formatDateInputValue(repair.expectedCompletion),
+  resolvedDate: formatDateInputValue(repair.resolvedDate),
+  cost: repair.cost,
+  kanbanColumn: repair.kanbanColumn,
 })
 
 function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
@@ -102,12 +158,129 @@ export default function RepairDetail() {
   const { id } = useParams<'id'>()
   const navigate = useNavigate()
   const { showToast } = useToast()
-
-  const original = repairsStore.find((repair) => repair.id === id)
-  const [form, setForm] = useState<RepairDetailForm | null>(
-    original ? createRepairForm(original) : null,
-  )
+  const [form, setForm] = useState<RepairDetailFormState | null>(null)
+  const [departments, setDepartments] = useState<RepairDepartmentOption[]>([])
+  const [vendors, setVendors] = useState<RepairVendorOption[]>([])
+  const [categories, setCategories] = useState<RepairCategoryOption[]>([])
+  const [users, setUsers] = useState<RepairUserOption[]>([])
   const [showDelete, setShowDelete] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isUsersLoading, setIsUsersLoading] = useState(true)
+  const [usersErrorMessage, setUsersErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const abortController = new AbortController()
+    const repairId = parseRepairId(id)
+
+    if (repairId === null) {
+      setForm(null)
+      setErrorMessage(`No record found for ${id}`)
+      setIsLoading(false)
+      return () => {
+        abortController.abort()
+      }
+    }
+
+    const loadRepairDetail = async () => {
+      setIsLoading(true)
+      setErrorMessage(null)
+      setIsUsersLoading(true)
+      setUsersErrorMessage(null)
+
+      try {
+        const repair = await fetchRepairById(repairId, abortController.signal)
+        const [departmentOptions, vendorOptions, categoryOptions] = await Promise.all([
+          fetchDepartments(abortController.signal),
+          fetchVendors(abortController.signal),
+          fetchDeviceCategories(abortController.signal),
+        ])
+
+        if (abortController.signal.aborted) {
+          return
+        }
+
+        try {
+          const userOptions = await fetchUsers()
+
+          if (!abortController.signal.aborted) {
+            setUsers(userOptions)
+          }
+        } catch (error) {
+          if (!abortController.signal.aborted) {
+            setUsers([])
+            setUsersErrorMessage(
+              error instanceof Error ? error.message : 'Unable to load users right now.',
+            )
+          }
+        } finally {
+          if (!abortController.signal.aborted) {
+            setIsUsersLoading(false)
+          }
+        }
+
+        setDepartments(departmentOptions)
+        setVendors(vendorOptions)
+        setCategories(categoryOptions)
+        setForm(createRepairFormState(repair))
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return
+        }
+
+        setForm(null)
+        setErrorMessage(
+          error instanceof Error ? error.message : 'Unable to load repair detail.',
+        )
+      } finally {
+        if (!abortController.signal.aborted) {
+          setIsUsersLoading(false)
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadRepairDetail()
+
+    return () => {
+      abortController.abort()
+    }
+  }, [id])
+
+  const selectedDepartment = useMemo(
+    () => departments.find((department) => department.department_id === form?.departmentId) ?? null,
+    [departments, form?.departmentId],
+  )
+
+  const selectedVendor = useMemo(
+    () => vendors.find((vendor) => vendor.vendor_id === form?.vendorId) ?? null,
+    [vendors, form?.vendorId],
+  )
+
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.category_id === form?.categoryId) ?? null,
+    [categories, form?.categoryId],
+  )
+
+  const selectedReportedByUser = useMemo(
+    () => users.find((user) => user.user_id === form?.reportedById) ?? null,
+    [form?.reportedById, users],
+  )
+
+  const reportedByDisplayName =
+    selectedReportedByUser?.user_name ?? (form?.reportedById ? `User #${form.reportedById}` : '')
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center" style={{ minHeight: '60vh' }}>
+        <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <p className="text-sm mt-4" style={{ color: 'var(--muted)' }}>
+          Loading repair detail...
+        </p>
+      </div>
+    )
+  }
 
   if (!form) {
     return (
@@ -117,7 +290,7 @@ export default function RepairDetail() {
           Repair Not Found
         </h2>
         <p className="text-sm mt-1 mb-5" style={{ color: 'var(--muted)' }}>
-          No record found for {id}
+          {errorMessage ?? `No record found for ${id}`}
         </p>
         <button onClick={() => navigate('/repairs')} className="btn-primary">
           &larr; Back to Repairs
@@ -126,59 +299,69 @@ export default function RepairDetail() {
     )
   }
 
-  const setField = <Key extends keyof RepairDetailForm>(
+  const setField = <Key extends keyof RepairDetailFormState>(
     key: Key,
-    value: RepairDetailForm[Key],
+    value: RepairDetailFormState[Key],
   ) => {
     setForm((currentForm) => (currentForm ? { ...currentForm, [key]: value } : currentForm))
   }
 
   const handleSave = () => {
-    if (!id) {
+    if (!form) {
       return
     }
 
-    const updatedRepair: RepairRecord = {
-      ...form,
-      notes: form.notes || undefined,
+    if (!form.departmentId || !form.vendorId || !form.categoryId || !form.reportedById) {
+      showToast('Department, vendor, category, and reported by are required', 'error')
+      return
     }
 
-    repairsStore = repairsStore.map((repair) => (repair.id === id ? updatedRepair : repair))
-    setForm(createRepairForm(updatedRepair))
-    showToast(`${id} updated successfully`, 'success')
+    setIsSaving(true)
+
+    void (async () => {
+      try {
+        await updateRepairById(form.repairId, {
+          device_name: form.deviceName,
+          category_id: form.categoryId,
+          serial_no: form.serialNo,
+          department_id: form.departmentId,
+          issue: form.issue,
+          notes: form.notes,
+          status: form.status,
+          reported_by: form.reportedById,
+          reported_date: toNullableDate(form.reportedDate),
+          vendor_id: form.vendorId,
+          priority: form.priority,
+          expected_completion: toNullableDate(form.expectedCompletion),
+          resolved_date: toNullableDate(form.resolvedDate),
+          cost: form.cost,
+        })
+        showToast(`${form.id} updated successfully`, 'success')
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : 'Failed to update repair.',
+          'error',
+        )
+      } finally {
+        setIsSaving(false)
+      }
+    })()
   }
 
   const handleDelete = () => {
-    if (!id) {
-      return
-    }
-
-    repairsStore = repairsStore.filter((repair) => repair.id !== id)
-    showToast(`${id} deleted`, 'info')
+    showToast(`${form.id} deleted`, 'info')
     navigate('/repairs')
   }
-
-  const related = repairsStore
-    .filter((repair) => repair.id !== id && repair.deviceCategory === form.deviceCategory)
-    .slice(0, 3)
 
   const timeline: TimelineItem[] = [
     {
       color: 'var(--success)',
-      title: `Ticket created by ${form.reportedBy}`,
+      title: `Ticket created by ${reportedByDisplayName || 'Unknown User'}`,
       date: form.reportedDate,
     },
   ]
 
-  if (form.technician) {
-    timeline.push({
-      color: 'var(--primary)',
-      title: `Assigned to ${form.technician}`,
-      date: form.reportedDate,
-    })
-  }
-
-  if (form.status !== 'Pending') {
+  if (form.status !== 'Open') {
     timeline.push({
       color: '#3b82f6',
       title: `Status -> ${form.status}`,
@@ -193,18 +376,6 @@ export default function RepairDetail() {
       date: form.resolvedDate,
     })
   }
-
-  const fieldGroup: Array<{ key: keyof RepairDetailForm; label: string; placeholder: string }> = [
-    { key: 'device', label: 'Device Name', placeholder: 'e.g. Dell Inspiron 15' },
-    { key: 'deviceCategory', label: 'Category', placeholder: 'e.g. Laptops' },
-    { key: 'serialNo', label: 'Serial Number', placeholder: 'SN-XXXX-XXX' },
-    { key: 'department', label: 'Department', placeholder: 'e.g. Finance' },
-  ]
-
-  const assignmentFields: Array<{ key: keyof RepairDetailForm; label: string; placeholder: string }> = [
-    { key: 'reportedBy', label: 'Reported By', placeholder: 'Employee name' },
-    { key: 'technician', label: 'Technician', placeholder: 'Assigned technician' },
-  ]
 
   const renderSectionTitle = (icon: ReactNode, title: string) => (
     <div className={SECTION_TITLE} style={{ color: 'var(--on-surface)' }}>
@@ -245,8 +416,8 @@ export default function RepairDetail() {
           >
             <Trash2 size={14} /> Delete
           </button>
-          <button onClick={handleSave} className="btn-primary text-sm">
-            <Save size={14} /> Save Changes
+          <button onClick={handleSave} className="btn-primary text-sm" disabled={isSaving}>
+            <Save size={14} /> {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -256,21 +427,66 @@ export default function RepairDetail() {
           <div className="section-card">
             {renderSectionTitle(<Wrench size={14} style={{ color: 'var(--primary)' }} />, 'Device Information')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {fieldGroup.map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
-                    {label}
-                  </label>
-                  <input
-                    value={String(form[key] ?? '')}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                      setField(key, event.target.value as RepairDetailForm[typeof key])
-                    }
-                    placeholder={placeholder}
-                    className="input-field"
-                  />
-                </div>
-              ))}
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Device Name
+                </label>
+                <input
+                  value={form.deviceName}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                    setField('deviceName', event.target.value)
+                  }
+                  placeholder="e.g. Dell Inspiron 15"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Category
+                </label>
+                <select
+                  value={String(form.categoryId)}
+                  onChange={(event) => setField('categoryId', Number(event.target.value))}
+                  className="input-field"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((category) => (
+                    <option key={category.category_id} value={category.category_id}>
+                      {category.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Serial Number
+                </label>
+                <input
+                  value={form.serialNo}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                    setField('serialNo', event.target.value)
+                  }
+                  placeholder="SN-XXXX-XXX"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Department
+                </label>
+                <select
+                  value={String(form.departmentId)}
+                  onChange={(event) => setField('departmentId', Number(event.target.value))}
+                  className="input-field"
+                >
+                  <option value="">Select department</option>
+                  {departments.map((department) => (
+                    <option key={department.department_id} value={department.department_id}>
+                      {department.department_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="sm:col-span-2">
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Issue Description
@@ -304,41 +520,57 @@ export default function RepairDetail() {
               'Assignment & Timeline',
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {assignmentFields.map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
-                    {label}
-                  </label>
-                  <input
-                    value={String(form[key] ?? '')}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                      setField(key, event.target.value as RepairDetailForm[typeof key])
-                    }
-                    placeholder={placeholder}
-                    className="input-field"
-                  />
-                </div>
-              ))}
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Reported By
+                </label>
+                <select
+                  value={form.reportedById ? String(form.reportedById) : ''}
+                  onChange={(event) => setField('reportedById', Number(event.target.value))}
+                  className="input-field"
+                  disabled={isUsersLoading || users.length === 0}
+                >
+                  <option value="">
+                    {isUsersLoading
+                      ? 'Loading users...'
+                      : usersErrorMessage
+                        ? 'Unable to load users'
+                        : users.length === 0
+                          ? 'No users available'
+                          : 'Select user'}
+                  </option>
+                  {users.map((user) => (
+                    <option key={user.user_id} value={user.user_id}>
+                      {user.user_name}
+                    </option>
+                  ))}
+                </select>
+                {usersErrorMessage ? (
+                  <p className="text-xs mt-1" style={{ color: 'var(--error-text)' }}>
+                    {usersErrorMessage}
+                  </p>
+                ) : null}
+              </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Vendor
                 </label>
                 <select
-                  value={form.vendor}
-                  onChange={(event) => setField('vendor', event.target.value)}
+                  value={String(form.vendorId)}
+                  onChange={(event) => setField('vendorId', Number(event.target.value))}
                   className="input-field"
                 >
                   <option value="">Select vendor</option>
-                  {VENDORS.map((vendor) => (
-                    <option key={vendor.id} value={vendor.name}>
-                      {vendor.name}
+                  {vendors.map((vendor) => (
+                    <option key={vendor.vendor_id} value={vendor.vendor_id}>
+                      {vendor.vendor_name}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
-                  Repair Cost ($)
+                  Repair Cost (Rs)
                 </label>
                 <input
                   type="number"
@@ -352,14 +584,23 @@ export default function RepairDetail() {
               </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Reported Date
+                </label>
+                <input
+                  type="date"
+                  value={form.reportedDate}
+                  onChange={(event) => setField('reportedDate', event.target.value)}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Expected Completion
                 </label>
                 <input
                   type="date"
-                  value={form.expectedCompletion ?? ''}
-                  onChange={(event) =>
-                    setField('expectedCompletion', event.target.value || null)
-                  }
+                  value={form.expectedCompletion}
+                  onChange={(event) => setField('expectedCompletion', event.target.value)}
                   className="input-field"
                 />
               </div>
@@ -369,8 +610,8 @@ export default function RepairDetail() {
                 </label>
                 <input
                   type="date"
-                  value={form.resolvedDate ?? ''}
-                  onChange={(event) => setField('resolvedDate', event.target.value || null)}
+                  value={form.resolvedDate}
+                  onChange={(event) => setField('resolvedDate', event.target.value)}
                   className="input-field"
                 />
               </div>
@@ -419,10 +660,11 @@ export default function RepairDetail() {
               Quick Info
             </p>
             <InfoRow icon={Hash} label="Ticket ID" value={form.id} />
-            <InfoRow icon={Building} label="Department" value={form.department} />
-            <InfoRow icon={User} label="Reported By" value={form.reportedBy} />
+            <InfoRow icon={Building} label="Department" value={selectedDepartment?.department_name ?? ''} />
+            <InfoRow icon={User} label="Reported By" value={reportedByDisplayName} />
             <InfoRow icon={Calendar} label="Reported Date" value={form.reportedDate} />
-            <InfoRow icon={MapPin} label="Vendor" value={form.vendor} />
+            <InfoRow icon={MapPin} label="Vendor" value={selectedVendor?.vendor_name ?? ''} />
+            <InfoRow icon={Wrench} label="Category" value={selectedCategory?.category_name ?? ''} />
             <div className="flex items-start gap-3 pt-2.5">
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -435,7 +677,7 @@ export default function RepairDetail() {
                   Cost
                 </p>
                 <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--on-surface)' }}>
-                  ${form.cost.toFixed(2)}
+                  Rs {form.cost.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -455,49 +697,12 @@ export default function RepairDetail() {
               ))}
             </div>
           </div>
-
-          {related.length > 0 && (
-            <div className="section-card">
-              <div className={SECTION_TITLE} style={{ color: 'var(--on-surface)' }}>
-                <FileText size={15} style={{ color: 'var(--primary)' }} /> Related Repairs
-              </div>
-              <div className="space-y-2">
-                {related.map((repair) => (
-                  <button
-                    key={repair.id}
-                    onClick={() => navigate(`/repairs/${repair.id}`)}
-                    className="w-full flex items-center justify-between p-2.5 rounded-lg text-left transition-all"
-                    style={{ background: 'var(--surface-low)' }}
-                    onMouseEnter={(event) => {
-                      event.currentTarget.style.background = 'var(--surface-container)'
-                    }}
-                    onMouseLeave={(event) => {
-                      event.currentTarget.style.background = 'var(--surface-low)'
-                    }}
-                  >
-                    <div>
-                      <code className="text-xs font-bold" style={{ color: 'var(--secondary)' }}>
-                        {repair.id}
-                      </code>
-                      <p className="text-xs mt-0.5 truncate max-w-[140px]" style={{ color: 'var(--muted)' }}>
-                        {repair.device}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <StatusBadge status={repair.status} />
-                      <ChevronRight size={12} style={{ color: 'var(--muted)' }} />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
       <div className="mt-6 flex justify-end xl:hidden">
-        <button onClick={handleSave} className="btn-primary">
-          <Save size={14} /> Save Changes
+        <button onClick={handleSave} className="btn-primary" disabled={isSaving}>
+          <Save size={14} /> {isSaving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -507,7 +712,7 @@ export default function RepairDetail() {
         onConfirm={handleDelete}
         danger
         title="Delete Repair Ticket"
-        message={`Are you sure you want to permanently delete ${id}? This cannot be undone.`}
+        message={`Are you sure you want to permanently delete ${form.id}? This cannot be undone.`}
       />
     </div>
   )
