@@ -1,4 +1,4 @@
-import type { Priority, RequestApprovalStatus, RequestKanbanColumn } from '../types/app'
+import type { Priority, RequestApprovalStatus } from '../types/app'
 import type {
   ApproveDeviceRequestApiResponse,
   ApproveDeviceRequestPayload,
@@ -27,6 +27,15 @@ interface DeviceRequestsPayloadEnvelope {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
+const extractPayloadMessage = (payload: unknown): string | null => {
+  if (!isRecord(payload) || typeof payload.message !== 'string') {
+    return null
+  }
+
+  const message = payload.message.trim()
+  return message === '' ? null : message
+}
+
 const isDeviceRequestApiItem = (value: unknown): value is DeviceRequestApiItem => {
   if (!isRecord(value)) {
     return false
@@ -48,7 +57,6 @@ const isDeviceRequestApiItem = (value: unknown): value is DeviceRequestApiItem =
     (typeof value.approved_by === 'number' || value.approved_by === null) &&
     (typeof value.approver_name === 'string' || value.approver_name === null) &&
     (typeof value.approval_date === 'string' || value.approval_date === null) &&
-    (typeof value.kanban_column === 'string' || value.kanban_column === null) &&
     typeof value.created_at === 'string' &&
     typeof value.updated_at === 'string'
   )
@@ -177,10 +185,8 @@ const formatDeviceRequestDisplayId = (requestId: number): string =>
 
 const normalizeRequestStatus = (
   status: string | null | undefined,
-  kanbanColumn?: string | null,
 ): RequestApprovalStatus => {
   const normalizedStatus = status?.trim().toLowerCase()
-  const normalizedColumn = kanbanColumn?.trim().toLowerCase()
 
   switch (normalizedStatus) {
     case 'requested':
@@ -192,18 +198,7 @@ const normalizeRequestStatus = (
     case 'rejected':
       return 'Rejected'
     default:
-      switch (normalizedColumn) {
-        case 'requested':
-          return 'Requested'
-        case 'pending':
-          return 'Pending'
-        case 'approved':
-          return 'Approved'
-        case 'rejected':
-          return 'Rejected'
-        default:
-          return 'Requested'
-      }
+      return 'Requested'
   }
 }
 
@@ -221,29 +216,8 @@ const normalizePriority = (priority: string): Priority => {
   }
 }
 
-const normalizeRequestKanbanColumn = (
-  kanbanColumn: string | null,
-  status: RequestApprovalStatus,
-): RequestKanbanColumn => {
-  switch (kanbanColumn?.trim().toLowerCase()) {
-    case 'requested':
-      return 'Requested'
-    case 'pending':
-      return 'Pending'
-    case 'approved':
-      return 'Approved'
-    case 'rejected':
-      return 'Rejected'
-    default:
-      return status
-  }
-}
-
 const mapDeviceRequestItem = (request: DeviceRequestApiItem): DeviceRequestListItem => {
-  const normalizedStatus = normalizeRequestStatus(
-    request.approval_status,
-    request.kanban_column,
-  )
+  const normalizedStatus = normalizeRequestStatus(request.approval_status)
 
   return {
     requestId: request.request_id,
@@ -262,7 +236,6 @@ const mapDeviceRequestItem = (request: DeviceRequestApiItem): DeviceRequestListI
     approvedById: request.approved_by,
     approvedBy: request.approver_name,
     approvalDate: request.approval_date ? request.approval_date.slice(0, 10) : null,
-    kanbanColumn: normalizeRequestKanbanColumn(request.kanban_column, normalizedStatus),
   }
 }
 
@@ -403,7 +376,7 @@ export async function updateDeviceRequestById(
 
 export async function moveDeviceRequestCard(
   requestId: number,
-  kanbanColumn: RequestKanbanColumn,
+  approvalStatus: RequestApprovalStatus,
 ): Promise<DeviceRequestListItem | null> {
   const response = await fetch(`${API_BASE_URL}/device-requests/${requestId}/move`, {
     method: 'PATCH',
@@ -413,7 +386,7 @@ export async function moveDeviceRequestCard(
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      kanban_column: kanbanColumn,
+      approval_status: approvalStatus,
     }),
   })
 
@@ -442,7 +415,7 @@ export async function moveDeviceRequestCard(
   }
 
   if (isRecord(payload) && payload.success === false) {
-    throw new Error('Move device request response is invalid')
+    throw new Error(extractPayloadMessage(payload) || 'Failed to move device request.')
   }
 
   emitDeviceRequestsChanged()
@@ -488,7 +461,9 @@ export async function approveDeviceRequestById(
   }
 
   if (isRecord(parsedPayload) && parsedPayload.success === false) {
-    throw new Error('Approve device request response is invalid')
+    throw new Error(
+      extractPayloadMessage(parsedPayload) || 'Failed to update request approval.',
+    )
   }
 
   emitDeviceRequestsChanged()

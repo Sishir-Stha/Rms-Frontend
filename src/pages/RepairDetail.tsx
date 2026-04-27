@@ -23,7 +23,7 @@ import { fetchDepartments } from '../services/departments.service'
 import { fetchRepairById, updateRepairById } from '../services/repair.service'
 import { fetchUsers } from '../services/user.service'
 import { fetchVendors } from '../services/vendors.service'
-import type { Priority, RepairKanbanColumn, RepairStatus } from '../types/app'
+import type { Priority, RepairStatus } from '../types/app'
 import type {
   RepairCategoryOption,
   RepairDepartmentOption,
@@ -49,7 +49,6 @@ interface RepairDetailFormState {
   expectedCompletion: string
   resolvedDate: string
   cost: number
-  kanbanColumn: RepairKanbanColumn
 }
 
 interface InfoRowProps {
@@ -106,7 +105,6 @@ const createRepairFormState = (
   expectedCompletion: formatDateInputValue(repair.expectedCompletion),
   resolvedDate: formatDateInputValue(repair.resolvedDate),
   cost: repair.cost,
-  kanbanColumn: repair.kanbanColumn,
 })
 
 function InfoRow({ icon: Icon, label, value }: InfoRowProps) {

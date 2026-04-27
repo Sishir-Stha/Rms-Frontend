@@ -10,18 +10,18 @@ import {
   moveDeviceRequestCard,
   subscribeToDeviceRequestsChanged,
 } from '../services/device-request.service'
-import type { RequestKanbanColumn } from '../types/app'
+import type { RequestApprovalStatus } from '../types/app'
 import type { DeviceRequestListItem } from '../types/device-request.types'
 
 interface KanbanColumn {
-  id: RequestKanbanColumn
+  id: RequestApprovalStatus
   label: string
   color: string
 }
 
 interface ConfirmState {
   requestId: number
-  col: Extract<RequestKanbanColumn, 'Rejected'>
+  col: Extract<RequestApprovalStatus, 'Rejected'>
 }
 
 const COLUMNS: KanbanColumn[] = [
@@ -37,7 +37,7 @@ export default function DeviceRequestKanban() {
   const navigate = useNavigate()
   const [cards, setCards] = useState<DeviceRequestListItem[]>([])
   const [dragging, setDragging] = useState<number | null>(null)
-  const [dragOver, setDragOver] = useState<RequestKanbanColumn | null>(null)
+  const [dragOver, setDragOver] = useState<RequestApprovalStatus | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -89,7 +89,7 @@ export default function DeviceRequestKanban() {
 
   const onDragOver = (
     event: DragEvent<HTMLDivElement>,
-    colId: RequestKanbanColumn,
+    colId: RequestApprovalStatus,
   ) => {
     event.preventDefault()
     setDragOver(colId)
@@ -105,7 +105,7 @@ export default function DeviceRequestKanban() {
 
   const moveCard = async (
     requestId: number,
-    col: RequestKanbanColumn,
+    col: RequestApprovalStatus,
   ) => {
     const targetCard = cards.find((card) => card.requestId === requestId)
 
@@ -120,7 +120,6 @@ export default function DeviceRequestKanban() {
         ? {
             ...targetCard,
             approvalStatus: col,
-            kanbanColumn: col,
             approvedById: currentUser?.id ?? targetCard.approvedById,
             approvedBy: currentUser?.name ?? targetCard.approvedBy,
             approvalDate: today,
@@ -128,7 +127,6 @@ export default function DeviceRequestKanban() {
         : {
             ...targetCard,
             approvalStatus: col,
-            kanbanColumn: col,
             approvedById: null,
             approvedBy: null,
             approvalDate: null,
@@ -179,7 +177,7 @@ export default function DeviceRequestKanban() {
 
   const onDrop = async (
     event: DragEvent<HTMLDivElement>,
-    colId: RequestKanbanColumn,
+    colId: RequestApprovalStatus,
   ) => {
     event.preventDefault()
 
@@ -225,24 +223,21 @@ export default function DeviceRequestKanban() {
           Device Request Kanban
         </h2>
         <p className="text-sm mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
-          Drag requests through the requested, pending, approval, and rejection workflow
+          Drag requests through the status workflow
         </p>
       </div>
 
       {errorMessage ? (
-        <div className="section-card mb-5 flex items-center justify-between gap-3">
+        <div className="section-card mb-5">
           <p className="text-sm" style={{ color: 'var(--error-text)' }}>
             {errorMessage}
           </p>
-          <button onClick={() => void loadBoard()} className="btn-secondary px-3 py-1.5 text-xs">
-            Reload
-          </button>
         </div>
       ) : null}
 
       <div className="flex gap-5 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 200px)' }}>
         {COLUMNS.map((column) => {
-          const columnCards = cards.filter((card) => card.kanbanColumn === column.id)
+          const columnCards = cards.filter((card) => card.approvalStatus === column.id)
 
           return (
             <div

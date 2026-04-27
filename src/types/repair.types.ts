@@ -1,4 +1,4 @@
-import type { Priority, RepairKanbanColumn, RepairStatus } from './app'
+import type { Priority, RepairStatus } from './app'
 
 export interface RepairListApiItem {
   repair_id: number
@@ -15,7 +15,6 @@ export interface RepairListApiItem {
   expected_completion: string | null
   resolved_date: string | null
   costs: string
-  kanban_column: string | null
 }
 
 export interface RepairListApiResponse {
@@ -42,7 +41,6 @@ export interface RepairDetailApiItem {
   expected_completion: string | null
   resolved_date: string | null
   costs: string
-  kanban_column: string | null
   created_at: string
   updated_at: string
 }
@@ -151,7 +149,6 @@ export interface RepairListItem {
   expectedCompletion: string | null
   resolvedDate: string | null
   cost: number
-  kanbanColumn: RepairKanbanColumn
 }
 
 export interface RepairDetailItem {
@@ -171,7 +168,6 @@ export interface RepairDetailItem {
   expectedCompletion: string | null
   resolvedDate: string | null
   cost: number
-  kanbanColumn: RepairKanbanColumn
   createdAt: string
   updatedAt: string
 }

@@ -29,7 +29,7 @@ import {
   updateDeviceRequestById,
 } from '../services/device-request.service'
 import { fetchUsers } from '../services/user.service'
-import type { Priority, RequestApprovalStatus, RequestKanbanColumn } from '../types/app'
+import type { Priority, RequestApprovalStatus } from '../types/app'
 import type { DeviceRequestDetailItem, DeviceRequestListItem } from '../types/device-request.types'
 import type {
   RepairDepartmentOption,
@@ -50,7 +50,6 @@ interface RequestDetailFormState {
   approvedByName: string | null
   approvalDate: string
   priority: Priority
-  kanbanColumn: RequestKanbanColumn
   quantity: number
 }
 
@@ -102,7 +101,6 @@ const createRequestForm = (request: DeviceRequestDetailItem): RequestDetailFormS
   approvedByName: request.approvedBy,
   approvalDate: formatDateInputValue(request.approvalDate),
   priority: request.priority,
-  kanbanColumn: request.kanbanColumn,
   quantity: request.quantity,
 })
 
@@ -304,7 +302,6 @@ export default function RequestDetail() {
           approval_status: form.approvalStatus,
           approved_by: form.approvedById,
           approval_date: toNullableDate(form.approvalDate),
-          kanban_column: form.kanbanColumn,
         })
         showToast(`${form.id} updated successfully`, 'success')
       } catch (error) {

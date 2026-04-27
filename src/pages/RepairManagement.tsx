@@ -5,7 +5,6 @@ import {
   Edit2,
   Filter,
   Plus,
-  RefreshCw,
   Search,
   Trash2,
 } from 'lucide-react'
@@ -336,15 +335,6 @@ export default function RepairManagement() {
           >
             <Plus size={14} />
             New Repair
-          </button>
-          <button
-            type="button"
-            onClick={() => setRefreshKey((currentValue) => currentValue + 1)}
-            className="btn-secondary flex items-center gap-2 flex-shrink-0"
-            disabled={isLoading}
-          >
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
-            Refresh
           </button>
         </div>
       </div>

@@ -19,7 +19,6 @@ export interface Repair {
   expected_completion: string | null
   resolved_date: string | null
   costs: string
-  kanban_column: string
 }
 
 export interface GetRepairsResponse {
@@ -46,7 +45,6 @@ export interface SingleRepair {
   expected_completion: string | null
   resolved_date: string | null
   costs: string
-  kanban_column: string
   created_at: string
   updated_at: string
 }
@@ -115,7 +113,7 @@ export interface DeleteRepairResponse {
 
 // Move Repair (Kanban)
 export interface MoveRepairRequest {
-  kanban_column: string
+  status: string
 }
 
 export interface MoveRepairResponse {
@@ -142,8 +140,8 @@ const API_BASE_URL = 'http://localhost:4000/api/v1'
 
 
 export const getRepairs = async (filters: GetRepairsRequest): Promise<GetRepairsResponse> => {
-  const response = await fetch(`${API_BASE_URL}/repairs`, {
-    method: 'GET',
+  const response = await fetch(`${API_BASE_URL}/repairs/get`, {
+    method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },

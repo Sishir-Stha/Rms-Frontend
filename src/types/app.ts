@@ -3,8 +3,6 @@ export type RepairStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed'
 export type RequestApprovalStatus = 'Requested' | 'Pending' | 'Approved' | 'Rejected'
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved'
 export type Priority = 'Critical' | 'High' | 'Medium' | 'Low'
-export type RepairKanbanColumn = 'Open' | 'In Progress' | 'Resolved' | 'Closed'
-export type RequestKanbanColumn = 'Requested' | 'Pending' | 'Approved' | 'Rejected'
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 
@@ -58,7 +56,7 @@ export interface RepairRecord {
   cost: number
   serialNo: string
   department: string
-  kanbanColumn: RepairKanbanColumn
+  kanbanColumn?: RepairStatus
   notes?: string
 }
 
@@ -74,7 +72,7 @@ export interface DeviceRequestRecord {
   approvedBy: string | null
   approvalDate: string | null
   priority: Priority
-  kanbanColumn: RequestKanbanColumn
+  kanbanColumn?: RequestApprovalStatus
   quantity?: number
 }
 

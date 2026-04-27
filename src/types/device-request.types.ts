@@ -1,4 +1,4 @@
-import type { Priority, RequestApprovalStatus, RequestKanbanColumn } from './app'
+import type { Priority, RequestApprovalStatus } from './app'
 
 export interface DeviceRequestApiItem {
   request_id: number
@@ -16,7 +16,6 @@ export interface DeviceRequestApiItem {
   approved_by: number | null
   approver_name: string | null
   approval_date: string | null
-  kanban_column: string | null
   created_at: string
   updated_at: string
 }
@@ -64,7 +63,6 @@ export interface UpdateDeviceRequestPayload {
   approval_status: RequestApprovalStatus
   approved_by: number | null
   approval_date: string | null
-  kanban_column: RequestKanbanColumn
 }
 
 export interface ApproveDeviceRequestPayload {
@@ -105,7 +103,6 @@ export interface DeviceRequestListItem {
   approvedById: number | null
   approvedBy: string | null
   approvalDate: string | null
-  kanbanColumn: RequestKanbanColumn
 }
 
 export interface DeviceRequestDetailItem extends DeviceRequestListItem {

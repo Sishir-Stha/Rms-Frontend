@@ -8,22 +8,18 @@ import {
   moveRepairCard,
   subscribeToRepairsChanged,
 } from '../services/repair.service'
-import type { RepairKanbanColumn, RepairStatus } from '../types/app'
+import type { RepairStatus } from '../types/app'
 import type { RepairListItem } from '../types/repair.types'
 
-interface RepairKanbanCard extends RepairListItem {
-  col: RepairKanbanColumn
-}
-
 interface KanbanColumn {
-  id: RepairKanbanColumn
+  id: RepairStatus
   label: string
   color: string
 }
 
 interface ConfirmState {
   id: string
-  col: RepairKanbanColumn
+  col: RepairStatus
 }
 
 const COLUMNS: KanbanColumn[] = [
@@ -33,27 +29,12 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'Closed', label: 'Closed', color: '#16a34a' },
 ]
 
-const getStatusFromColumn = (column: RepairKanbanColumn): RepairStatus => {
-  switch (column) {
-    case 'Open':
-      return 'Open'
-    case 'In Progress':
-      return 'In Progress'
-    case 'Resolved':
-      return 'Resolved'
-    case 'Closed':
-      return 'Closed'
-    default:
-      return 'Open'
-  }
-}
-
 export default function RepairKanban() {
   const { showToast } = useToast()
   const navigate = useNavigate()
-  const [cards, setCards] = useState<RepairKanbanCard[]>([])
+  const [cards, setCards] = useState<RepairListItem[]>([])
   const [dragging, setDragging] = useState<string | null>(null)
-  const [dragOver, setDragOver] = useState<RepairKanbanColumn | null>(null)
+  const [dragOver, setDragOver] = useState<RepairStatus | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -84,12 +65,7 @@ export default function RepairKanban() {
         )
 
         if (!abortController.signal.aborted) {
-          setCards(
-            response.map((repair) => ({
-              ...repair,
-              col: repair.kanbanColumn || 'Open',
-            })),
-          )
+          setCards(response)
         }
       } catch (error) {
         if (abortController.signal.aborted) {
@@ -117,13 +93,13 @@ export default function RepairKanban() {
 
   const onDragOver = (
     event: DragEvent<HTMLDivElement>,
-    colId: RepairKanbanColumn,
+    colId: RepairStatus,
   ) => {
     event.preventDefault()
     setDragOver(colId)
   }
 
-  const moveCard = (id: string, col: RepairKanbanColumn) => {
+  const moveCard = (id: string, status: RepairStatus) => {
     const targetCard = cards.find((card) => card.id === id)
 
     if (!targetCard) {
@@ -135,9 +111,7 @@ export default function RepairKanban() {
       card.id === id
         ? {
             ...card,
-            col,
-            kanbanColumn: col,
-            status: getStatusFromColumn(col),
+            status,
           }
         : card,
     )
@@ -146,8 +120,8 @@ export default function RepairKanban() {
 
     void (async () => {
       try {
-        await moveRepairCard(targetCard.repairId, col)
-        showToast(`Card moved to ${col}`, 'success')
+        await moveRepairCard(targetCard.repairId, status)
+        showToast(`Card moved to ${status}`, 'success')
       } catch (error) {
         setCards(previousCards)
         showToast(
@@ -160,7 +134,7 @@ export default function RepairKanban() {
 
   const onDrop = (
     event: DragEvent<HTMLDivElement>,
-    colId: RepairKanbanColumn,
+    colId: RepairStatus,
   ) => {
     event.preventDefault()
 
@@ -170,7 +144,7 @@ export default function RepairKanban() {
 
     const card = cards.find((item) => item.id === dragging)
 
-    if (colId === 'Closed' && card?.col !== 'Closed') {
+    if (colId === 'Closed' && card?.status !== 'Closed') {
       setConfirm({ id: dragging, col: colId })
     } else {
       moveCard(dragging, colId)
@@ -194,7 +168,7 @@ export default function RepairKanban() {
     () =>
       COLUMNS.map((column) => ({
         ...column,
-        cards: cards.filter((card) => card.col === column.id),
+        cards: cards.filter((card) => card.status === column.id),
       })),
     [cards],
   )
@@ -207,7 +181,7 @@ export default function RepairKanban() {
             Repair Kanban Board
           </h2>
           <p className="text-sm mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
-            Backend-driven repair board grouped by kanban column
+            Backend-driven repair board grouped by status
           </p>
         </div>
       </div>

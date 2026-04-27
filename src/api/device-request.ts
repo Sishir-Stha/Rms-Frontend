@@ -15,7 +15,6 @@ export interface DeviceRequest {
   approved_by: number | null
   approver_name: string | null
   approval_date: string | null
-  kanban_column: string | null
   created_at: string
   updated_at: string
 }
@@ -66,7 +65,6 @@ export interface UpdateDeviceRequestRequest {
   approval_status: string
   approved_by: number
   approval_date: string
-  kanban_column: string
 }
 
 export interface UpdateDeviceRequestResponse {
@@ -169,7 +167,7 @@ export const updateDeviceRequest = async (requestId: number, requestData: Update
 
 // Move Device Request (Kanban)
 export interface MoveDeviceRequestRequest {
-  kanban_column: string
+  approval_status: string
 }
 
 export interface MoveDeviceRequestResponse {

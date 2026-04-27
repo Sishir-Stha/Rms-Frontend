@@ -1,4 +1,4 @@
-import type { Priority, RepairKanbanColumn, RepairStatus } from '../types/app'
+import type { Priority, RepairStatus } from '../types/app'
 import type {
   CreateRepairPayload,
   FetchRepairsFilters,
@@ -25,6 +25,15 @@ interface RepairsPayloadEnvelope {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
+const extractPayloadMessage = (payload: unknown): string | null => {
+  if (!isRecord(payload) || typeof payload.message !== 'string') {
+    return null
+  }
+
+  const message = payload.message.trim()
+  return message === '' ? null : message
+}
+
 const isRepairListApiItem = (value: unknown): value is RepairListApiItem => {
   if (!isRecord(value)) {
     return false
@@ -45,8 +54,7 @@ const isRepairListApiItem = (value: unknown): value is RepairListApiItem => {
     (typeof value.expected_completion === 'string' ||
       value.expected_completion === null) &&
     (typeof value.resolved_date === 'string' || value.resolved_date === null) &&
-    typeof value.costs === 'string' &&
-    (typeof value.kanban_column === 'string' || value.kanban_column === null)
+    typeof value.costs === 'string'
   )
 }
 
@@ -72,7 +80,6 @@ const isRepairDetailApiItem = (value: unknown): value is RepairDetailApiItem => 
       value.expected_completion === null) &&
     (typeof value.resolved_date === 'string' || value.resolved_date === null) &&
     typeof value.costs === 'string' &&
-    (typeof value.kanban_column === 'string' || value.kanban_column === null) &&
     typeof value.created_at === 'string' &&
     typeof value.updated_at === 'string'
   )
@@ -164,12 +171,8 @@ const isNoRepairsPayload = (payload: unknown): boolean => {
 const formatRepairDisplayId = (repairId: number): string =>
   `REP-${String(repairId).padStart(3, '0')}`
 
-const normalizeRepairStatus = (
-  status: string | null | undefined,
-  kanbanColumn?: string | null,
-): RepairStatus => {
+const normalizeRepairStatus = (status: string | null | undefined): RepairStatus => {
   const normalizedStatus = status?.trim().toLowerCase()
-  const normalizedColumn = kanbanColumn?.trim().toLowerCase()
 
   switch (normalizedStatus) {
     case 'open':
@@ -191,22 +194,16 @@ const normalizeRepairStatus = (
     case 'pending':
       return 'Open'
     default:
-      switch (normalizedColumn) {
-        case 'open':
-        case 'backlog':
-          return 'Open'
-        case 'inprogress':
-        case 'in progress':
-          return 'In Progress'
-        case 'resolved':
-        case 'under review':
-          return 'Resolved'
-        case 'closed':
-        case 'completed':
-          return 'Closed'
-        default:
-          return 'Open'
-      }
+      return 'Open'
+  }
+}
+
+const serializeRepairStatus = (status: string): string => {
+  switch (status) {
+    case 'In Progress':
+      return 'InProgress'
+    default:
+      return status
   }
 }
 
@@ -224,30 +221,8 @@ const normalizePriority = (priority: string): Priority => {
   }
 }
 
-const normalizeKanbanColumn = (
-  kanbanColumn: string | null,
-  status: RepairStatus,
-): RepairKanbanColumn => {
-  switch (kanbanColumn?.trim().toLowerCase()) {
-    case 'open':
-    case 'backlog':
-      return 'Open'
-    case 'inprogress':
-    case 'in progress':
-      return 'In Progress'
-    case 'resolved':
-    case 'under review':
-      return 'Resolved'
-    case 'closed':
-    case 'completed':
-      return 'Closed'
-    default:
-      return status
-  }
-}
-
 const mapRepairListItem = (repair: RepairListApiItem): RepairListItem => {
-  const normalizedStatus = normalizeRepairStatus(repair.status, repair.kanban_column)
+  const normalizedStatus = normalizeRepairStatus(repair.status)
 
   return {
     repairId: repair.repair_id,
@@ -265,12 +240,11 @@ const mapRepairListItem = (repair: RepairListApiItem): RepairListItem => {
     expectedCompletion: repair.expected_completion,
     resolvedDate: repair.resolved_date,
     cost: Number.parseFloat(repair.costs) || 0,
-    kanbanColumn: normalizeKanbanColumn(repair.kanban_column, normalizedStatus),
   }
 }
 
 const mapRepairDetailItem = (repair: RepairDetailApiItem): RepairDetailItem => {
-  const normalizedStatus = normalizeRepairStatus(repair.status, repair.kanban_column)
+  const normalizedStatus = normalizeRepairStatus(repair.status)
 
   return {
     repairId: repair.repair_id,
@@ -289,7 +263,6 @@ const mapRepairDetailItem = (repair: RepairDetailApiItem): RepairDetailItem => {
     expectedCompletion: repair.expected_completion,
     resolvedDate: repair.resolved_date,
     cost: Number.parseFloat(repair.costs) || 0,
-    kanbanColumn: normalizeKanbanColumn(repair.kanban_column, normalizedStatus),
     createdAt: repair.created_at,
     updatedAt: repair.updated_at,
   }
@@ -324,7 +297,7 @@ export async function fetchRepairs(
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      status: filters.status,
+      status: filters.status ? serializeRepairStatus(filters.status) : '',
       device_name: filters.device_name,
     }),
     signal,
@@ -402,6 +375,11 @@ export async function updateRepairById(
   repairId: number,
   payload: UpdateRepairPayload,
 ): Promise<void> {
+  const requestPayload = {
+    ...payload,
+    status: serializeRepairStatus(payload.status),
+  }
+
   const response = await fetch(`${API_BASE_URL}/repairs/${repairId}`, {
     method: 'PUT',
     credentials: 'include',
@@ -409,7 +387,7 @@ export async function updateRepairById(
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
   })
 
   if (!response.ok) {
@@ -424,7 +402,7 @@ export async function updateRepairById(
 
 export async function moveRepairCard(
   repairId: number,
-  kanbanColumn: RepairKanbanColumn,
+  status: RepairStatus,
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/repairs/${repairId}/move`, {
     method: 'PATCH',
@@ -434,7 +412,7 @@ export async function moveRepairCard(
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      kanban_column: kanbanColumn,
+      status: serializeRepairStatus(status),
     }),
   })
 
@@ -458,7 +436,7 @@ export async function moveRepairCard(
   }
 
   if (isRecord(payload) && payload.success === false) {
-    throw new Error('Move repair response is invalid')
+    throw new Error(extractPayloadMessage(payload) || 'Failed to move repair.')
   }
 
   emitRepairsChanged()
