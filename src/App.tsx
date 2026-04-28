@@ -14,6 +14,8 @@ import RepairDetail from './pages/RepairDetail'
 import RepairKanban from './pages/RepairKanban'
 import RepairManagement from './pages/RepairManagement'
 import Reports from './pages/Reports'
+import DeviceReportDetail from './pages/reports/DeviceReportDetail'
+import RepairsReportDetail from './pages/reports/RepairsReportDetail'
 import RequestDetail from './pages/RequestDetail'
 import Settings from './pages/Settings'
 
@@ -45,6 +47,8 @@ function AppLayout() {
             <Route path="/requests/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
             <Route path="/request-kanban" element={<ProtectedRoute><DeviceRequestKanban /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+            <Route path="/reports/repairs" element={<ProtectedRoute><RepairsReportDetail /></ProtectedRoute>} />
+            <Route path="/reports/device" element={<ProtectedRoute><DeviceReportDetail /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />

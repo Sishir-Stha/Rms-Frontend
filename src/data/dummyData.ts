@@ -1,14 +1,11 @@
 import type {
   AppUser,
   DepartmentRecord,
-  DepartmentRequestsDatum,
   DeviceCategoryChartDatum,
   DeviceCategoryRecord,
   DeviceRequestRecord,
-  MonthlyRepairDataPoint,
   RepairRecord,
   SupportTicketRecord,
-  TechnicianPerformanceDatum,
   VendorRecord,
 } from '../types/app'
 
@@ -107,43 +104,10 @@ export const SUPPORT_TICKETS: SupportTicketRecord[] = [
   { id: 'TKT-010', title: 'Monitor not detected', description: 'Second monitor not recognized by Dell laptop. Tried different cable.', raisedBy: 'Legal Department', department: 'Legal', priority: 'Low', status: 'Open', assignedTo: 'Michael Torres', category: 'Hardware', createdDate: '2026-03-16', updatedDate: '2026-03-16' },
 ]
 
-export const MONTHLY_REPAIRS: MonthlyRepairDataPoint[] = [
-  { month: 'Apr 25', repairs: 18, completed: 14, pending: 4 },
-  { month: 'May 25', repairs: 22, completed: 19, pending: 3 },
-  { month: 'Jun 25', repairs: 15, completed: 12, pending: 3 },
-  { month: 'Jul 25', repairs: 28, completed: 24, pending: 4 },
-  { month: 'Aug 25', repairs: 24, completed: 20, pending: 4 },
-  { month: 'Sep 25', repairs: 32, completed: 28, pending: 4 },
-  { month: 'Oct 25', repairs: 20, completed: 17, pending: 3 },
-  { month: 'Nov 25', repairs: 26, completed: 22, pending: 4 },
-  { month: 'Dec 25', repairs: 14, completed: 12, pending: 2 },
-  { month: 'Jan 26', repairs: 30, completed: 25, pending: 5 },
-  { month: 'Feb 26', repairs: 35, completed: 29, pending: 6 },
-  { month: 'Mar 26', repairs: 28, completed: 18, pending: 10 },
-]
-
 export const DEVICE_CATEGORY_DATA: DeviceCategoryChartDatum[] = [
   { name: 'Laptops', value: 40, fill: '#62df7d' },
   { name: 'Mobile Phones', value: 25, fill: '#adc6ff' },
   { name: 'Printers', value: 20, fill: '#f59e0b' },
   { name: 'Desktops', value: 10, fill: '#bac5ee' },
   { name: 'Others', value: 5, fill: '#879485' },
-]
-
-export const DEPARTMENT_REQUESTS_DATA: DepartmentRequestsDatum[] = [
-  { dept: 'IT', requests: 15, approved: 10, rejected: 3, pending: 2 },
-  { dept: 'Finance', requests: 12, approved: 9, rejected: 1, pending: 2 },
-  { dept: 'HR', requests: 8, approved: 6, rejected: 1, pending: 1 },
-  { dept: 'Operations', requests: 18, approved: 12, rejected: 2, pending: 4 },
-  { dept: 'Marketing', requests: 6, approved: 3, rejected: 2, pending: 1 },
-  { dept: 'Sales', requests: 10, approved: 8, rejected: 1, pending: 1 },
-  { dept: 'Legal', requests: 4, approved: 3, rejected: 0, pending: 1 },
-  { dept: 'R&D', requests: 9, approved: 7, rejected: 1, pending: 1 },
-]
-
-export const TECHNICIAN_PERFORMANCE: TechnicianPerformanceDatum[] = [
-  { name: 'James Rodriguez', resolved: 34, inProgress: 5, avgDays: 3.2, rating: 4.8 },
-  { name: 'Sarah Mitchell', resolved: 28, inProgress: 4, avgDays: 2.8, rating: 4.9 },
-  { name: 'Michael Torres', resolved: 31, inProgress: 6, avgDays: 3.5, rating: 4.6 },
-  { name: 'David Kim', resolved: 22, inProgress: 3, avgDays: 4.1, rating: 4.5 },
 ]
