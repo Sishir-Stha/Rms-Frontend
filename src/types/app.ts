@@ -90,33 +90,10 @@ export interface SupportTicketRecord {
   updatedDate: string
 }
 
-export interface MonthlyRepairDataPoint {
-  month: string
-  repairs: number
-  completed: number
-  pending: number
-}
-
 export interface DeviceCategoryChartDatum {
   name: string
   value: number
   fill: string
-}
-
-export interface DepartmentRequestsDatum {
-  dept: string
-  requests: number
-  approved: number
-  rejected: number
-  pending: number
-}
-
-export interface TechnicianPerformanceDatum {
-  name: string
-  resolved: number
-  inProgress: number
-  avgDays: number
-  rating: number
 }
 
 export interface ToastMessage {

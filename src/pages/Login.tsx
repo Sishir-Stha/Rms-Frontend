@@ -52,12 +52,6 @@ export default function Login() {
     }
   }
 
-  const fillDemo = () => {
-    setEmail('sishershrestha000@gmail.com')
-    setPassword('password123')
-    setError('')
-  }
-
   return (
     <div className="min-h-screen flex" style={{ background: '#0b1326' }}>
       <div
@@ -214,34 +208,6 @@ export default function Login() {
               </button>
             </form>
 
-            <div className="mt-5 pt-5 border-t border-outline-variant/15">
-              <p className="text-xs text-on-surface-variant mb-2 font-semibold uppercase tracking-wider">
-                Demo Credentials
-              </p>
-              <div
-                className="rounded-xl p-3 text-xs space-y-1"
-                style={{
-                  background: 'rgba(98,223,125,0.06)',
-                  border: '1px solid rgba(98,223,125,0.15)',
-                }}
-              >
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Email</span>
-                  <code className="text-primary">sishershrestha000@gmail.com</code>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Password</span>
-                  <code className="text-primary">password123</code>
-                </div>
-              </div>
-              <button
-                onClick={fillDemo}
-                id="use-demo-btn"
-                className="btn-secondary w-full justify-center mt-3 text-xs py-2"
-              >
-                Use Demo Credentials
-              </button>
-            </div>
           </div>
         </div>
       </div>
