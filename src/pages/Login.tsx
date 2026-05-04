@@ -147,7 +147,7 @@ export default function Login() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   className="input-field"
-                  placeholder="sishershrestha000@gmail.com"
+                  placeholder="abc@gmail.com"
                   required
                   autoComplete="email"
                 />
