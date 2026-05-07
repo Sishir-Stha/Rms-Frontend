@@ -40,6 +40,7 @@ interface RequestDetailFormState {
   requestId: number
   id: string
   requestedById: number
+  requestedFor: string
   departmentId: number
   deviceType: string
   brand: string
@@ -72,6 +73,12 @@ interface TimelineEventProps extends TimelineItem {
 const FIELD_LABEL = 'block text-xs font-semibold uppercase tracking-wider mb-1.5'
 const SECTION_TITLE = 'flex items-center gap-2 font-semibold text-sm mb-4'
 const PRIORITIES: Priority[] = ['Critical', 'High', 'Medium', 'Low']
+const REQUEST_STATUSES: RequestApprovalStatus[] = [
+  'Requested',
+  'Pending',
+  'Approved',
+  'Rejected',
+]
 
 const formatDateInputValue = (value: string | null): string =>
   value ? value.slice(0, 10) : ''
@@ -91,6 +98,7 @@ const createRequestForm = (request: DeviceRequestDetailItem): RequestDetailFormS
   requestId: request.requestId,
   id: request.id,
   requestedById: request.requestedById,
+  requestedFor: request.requestedFor,
   departmentId: request.departmentId,
   deviceType: request.deviceType,
   brand: request.brand,
@@ -276,13 +284,46 @@ export default function RequestDetail() {
     setForm((currentForm) => (currentForm ? { ...currentForm, [key]: value } : currentForm))
   }
 
+  const handleStatusChange = (nextStatus: RequestApprovalStatus) => {
+    setForm((currentForm) => {
+      if (!currentForm) {
+        return currentForm
+      }
+
+      if (nextStatus === 'Requested' || nextStatus === 'Pending') {
+        return {
+          ...currentForm,
+          approvalStatus: nextStatus,
+          approvedById: null,
+          approvedByName: null,
+          approvalDate: '',
+        }
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+
+      return {
+        ...currentForm,
+        approvalStatus: nextStatus,
+        approvedById: currentForm.approvedById ?? currentUser?.id ?? null,
+        approvedByName: currentForm.approvedByName ?? currentUser?.name ?? null,
+        approvalDate: currentForm.approvalDate || today,
+      }
+    })
+  }
+
   const handleSave = () => {
     if (!form) {
       return
     }
 
-    if (!form.requestedById || !form.departmentId || !form.deviceType.trim()) {
-      showToast('Requester, department, and device type are required', 'error')
+    if (
+      !form.requestedById ||
+      !form.departmentId ||
+      !form.requestedFor.trim() ||
+      !form.deviceType.trim()
+    ) {
+      showToast('Requester, department, requested for, and device type are required', 'error')
       return
     }
 
@@ -298,6 +339,7 @@ export default function RequestDetail() {
           reason: form.reason.trim(),
           quantity: form.quantity,
           priority: form.priority,
+          requested_for: form.requestedFor.trim(),
           request_date: toNullableDate(form.requestDate),
           approval_status: form.approvalStatus,
           approved_by: form.approvedById,
@@ -553,6 +595,17 @@ export default function RequestDetail() {
               </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Requested For
+                </label>
+                <input
+                  value={form.requestedFor}
+                  onChange={(event) => setField('requestedFor', event.target.value)}
+                  placeholder="e.g. New hire, Apple"
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Request Date
                 </label>
                 <input
@@ -561,6 +614,24 @@ export default function RequestDetail() {
                   onChange={(event) => setField('requestDate', event.target.value)}
                   className="input-field"
                 />
+              </div>
+              <div>
+                <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
+                  Status
+                </label>
+                <select
+                  value={form.approvalStatus}
+                  onChange={(event) =>
+                    handleStatusChange(event.target.value as RequestApprovalStatus)
+                  }
+                  className="input-field"
+                >
+                  {REQUEST_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
               </div>
               {form.approvalDate && (
                 <div>
@@ -622,6 +693,7 @@ export default function RequestDetail() {
             <InfoRow icon={Hash} label="Request ID" value={form.id} />
             <InfoRow icon={Building} label="Department" value={selectedDepartment?.department_name ?? ''} />
             <InfoRow icon={User} label="Requester" value={selectedRequester?.user_name ?? ''} />
+            <InfoRow icon={Tag} label="Requested For" value={form.requestedFor} />
             <InfoRow icon={Calendar} label="Request Date" value={form.requestDate} />
             <div className="flex items-start gap-3 pt-2.5">
               <div

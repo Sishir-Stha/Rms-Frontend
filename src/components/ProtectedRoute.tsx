@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { canAccessPathForDepartment } from '../utils/access-control'
 
 interface ProtectedRouteProps {
   children: ReactNode
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, loading } = useAuth()
+  const { currentUser, isAuthenticated, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -15,6 +17,13 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     )
+  }
+
+  if (
+    isAuthenticated &&
+    !canAccessPathForDepartment(currentUser?.department, location.pathname)
+  ) {
+    return <Navigate to="/" replace />
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />

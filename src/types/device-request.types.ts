@@ -3,6 +3,7 @@ import type { Priority, RequestApprovalStatus } from './app'
 export interface DeviceRequestApiItem {
   request_id: number
   requested_by: number
+  requested_for?: string | null
   requester_name: string
   department_id: number
   department_name: string
@@ -49,6 +50,7 @@ export interface CreateDeviceRequestPayload {
   reason: string
   quantity: number
   priority: Priority
+  requested_for: string
 }
 
 export interface UpdateDeviceRequestPayload {
@@ -59,6 +61,7 @@ export interface UpdateDeviceRequestPayload {
   reason: string
   quantity: number
   priority: Priority
+  requested_for: string
   request_date: string | null
   approval_status: RequestApprovalStatus
   approved_by: number | null
@@ -91,6 +94,7 @@ export interface DeviceRequestListItem {
   id: string
   requestedById: number
   requestedBy: string
+  requestedFor: string
   departmentId: number
   department: string
   deviceType: string

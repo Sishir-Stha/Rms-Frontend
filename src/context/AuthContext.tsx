@@ -83,16 +83,13 @@ const parseStoredUser = (stored: string | null): AppUser | null => {
       typeof parsed.user_id === 'number' &&
       typeof parsed.username === 'string' &&
       typeof parsed.email === 'string' &&
-      (typeof parsed.department === 'number' || typeof parsed.department === 'string')
+      typeof parsed.department === 'string'
     ) {
       return normalizeUser({
         user_id: parsed.user_id,
         username: parsed.username,
         email: parsed.email,
-        department:
-          typeof parsed.department === 'number'
-            ? parsed.department
-            : Number.parseInt(parsed.department, 10) || 0,
+        department: parsed.department,
         status: parsed.status === 'Inactive' ? 'Inactive' : 'Active',
       })
     }
