@@ -7,7 +7,7 @@ export interface UserData {
   user_id: number
   username: string
   email: string
-  department: number
+  department: string
   status: string
 }
 

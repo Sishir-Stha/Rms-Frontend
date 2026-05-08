@@ -6,6 +6,7 @@ import {
   Edit2,
   Plus,
   Search,
+  Trash2,
   XCircle,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -19,6 +20,7 @@ import { fetchDeviceCategories } from '../services/device_categories.service'
 import {
   approveDeviceRequestById,
   createDeviceRequestEntry,
+  deleteDeviceRequestById,
   fetchDeviceRequests,
   subscribeToDeviceRequestsChanged,
 } from '../services/device-request.service'
@@ -30,9 +32,14 @@ import type {
   RepairDepartmentOption,
   RepairUserOption,
 } from '../types/repair.types'
+import {
+  canCreateDeviceRequestForDepartment,
+  isAdminDepartment,
+} from '../utils/access-control'
 
 interface DeviceRequestFormData {
   requestedById: number
+  requestedFor: string
   departmentId: number
   deviceType: string
   brand: string
@@ -43,7 +50,8 @@ interface DeviceRequestFormData {
 
 interface ConfirmState {
   requestId: number
-  action: 'reject'
+  requestLabel: string
+  action: 'reject' | 'delete'
 }
 
 type StatusFilter = 'All' | RequestApprovalStatus
@@ -55,6 +63,7 @@ const PAGE_SIZE = 8
 
 const emptyForm: DeviceRequestFormData = {
   requestedById: 0,
+  requestedFor: '',
   departmentId: 0,
   deviceType: '',
   brand: '',
@@ -79,6 +88,8 @@ export default function DeviceRequests() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const canCreateDeviceRequest = canCreateDeviceRequestForDepartment(currentUser?.department)
+  const isAdminUser = isAdminDepartment(currentUser?.department)
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
   const [departments, setDepartments] = useState<RepairDepartmentOption[]>([])
@@ -193,6 +204,11 @@ export default function DeviceRequests() {
   }
 
   const openCreateModal = () => {
+    if (!canCreateDeviceRequest) {
+      showToast('Admin users cannot create new device requests', 'info')
+      return
+    }
+
     resetCreateForm()
     setShowModal(true)
   }
@@ -262,8 +278,19 @@ export default function DeviceRequests() {
   }
 
   const handleCreate = async () => {
-    if (!form.requestedById || !form.departmentId || !form.deviceType.trim()) {
-      showToast('Requester, department, and device type are required', 'error')
+    if (!canCreateDeviceRequest) {
+      showToast('Admin users cannot create new device requests', 'error')
+      setShowModal(false)
+      return
+    }
+
+    if (
+      !form.requestedById ||
+      !form.departmentId ||
+      !form.requestedFor.trim() ||
+      !form.deviceType.trim()
+    ) {
+      showToast('Requester, department, requested for, and device type are required', 'error')
       return
     }
 
@@ -278,6 +305,7 @@ export default function DeviceRequests() {
         reason: form.reason.trim(),
         quantity: form.quantity,
         priority: form.priority,
+        requested_for: form.requestedFor.trim(),
       })
 
       await refreshRequests()
@@ -291,6 +319,23 @@ export default function DeviceRequests() {
       )
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (requestId: number) => {
+    try {
+      await deleteDeviceRequestById(requestId)
+      setRequests((previousRequests) =>
+        previousRequests.filter((request) => request.requestId !== requestId),
+      )
+      showToast('Request deleted', 'success')
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Failed to delete device request.',
+        'error',
+      )
+    } finally {
+      setConfirm(null)
     }
   }
 
@@ -321,13 +366,15 @@ export default function DeviceRequests() {
             Manage device request approvals and workflows
           </p>
         </div>
-        <button
-          id="new-request-btn"
-          onClick={openCreateModal}
-          className="btn-primary flex-shrink-0"
-        >
-          <Plus size={16} /> New Request
-        </button>
+        {canCreateDeviceRequest ? (
+          <button
+            id="new-request-btn"
+            onClick={openCreateModal}
+            className="btn-primary flex-shrink-0"
+          >
+            <Plus size={16} /> New Request
+          </button>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -466,7 +513,13 @@ export default function DeviceRequests() {
                               <CheckCircle size={12} /> Approve
                             </button>
                             <button
-                              onClick={() => setConfirm({ requestId: request.requestId, action: 'reject' })}
+                              onClick={() =>
+                                setConfirm({
+                                  requestId: request.requestId,
+                                  requestLabel: request.id,
+                                  action: 'reject',
+                                })
+                              }
                               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                               style={{
                                 color: 'var(--error-text)',
@@ -475,18 +528,52 @@ export default function DeviceRequests() {
                             >
                               <XCircle size={12} /> Reject
                             </button>
+                            <button
+                              onClick={() =>
+                                setConfirm({
+                                  requestId: request.requestId,
+                                  requestLabel: request.id,
+                                  action: 'delete',
+                                })
+                              }
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                              style={{
+                                color: 'var(--error-text)',
+                                background: 'var(--error-bg)',
+                              }}
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => navigate(`/requests/${request.requestId}`)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-                            style={{
-                              color: 'var(--primary)',
-                              background: 'var(--primary-lighter)',
-                            }}
-                          >
-                            <Edit2 size={11} /> View
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => navigate(`/requests/${request.requestId}`)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{
+                                color: 'var(--primary)',
+                                background: 'var(--primary-lighter)',
+                              }}
+                            >
+                              <Edit2 size={11} /> View
+                            </button>
+                            <button
+                              onClick={() =>
+                                setConfirm({
+                                  requestId: request.requestId,
+                                  requestLabel: request.id,
+                                  action: 'delete',
+                                })
+                              }
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{
+                                color: 'var(--error-text)',
+                                background: 'var(--error-bg)',
+                              }}
+                            >
+                              <Trash2 size={11} /> Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -523,13 +610,14 @@ export default function DeviceRequests() {
         </div>
       </div>
 
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title="New Device Request"
-        size="md"
-      >
-        <div className="space-y-4">
+      {!isAdminUser ? (
+        <Modal
+          isOpen={showModal && canCreateDeviceRequest}
+          onClose={() => setShowModal(false)}
+          title="New Device Request"
+          size="md"
+        >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
               Requested By
@@ -580,6 +668,22 @@ export default function DeviceRequests() {
           </div>
           <div>
             <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+              Requested For
+            </label>
+            <input
+              value={form.requestedFor}
+              onChange={(event) =>
+                setForm((currentForm) => ({
+                  ...currentForm,
+                  requestedFor: event.target.value,
+                }))
+              }
+              placeholder="e.g. Finance team"
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
               Device Type
             </label>
             <select
@@ -618,47 +722,45 @@ export default function DeviceRequests() {
               className="input-field"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-                Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={form.quantity}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    quantity: Math.max(1, Number(event.target.value) || 1),
-                  }))
-                }
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-                Priority
-              </label>
-              <select
-                value={form.priority}
-                onChange={(event) =>
-                  setForm((currentForm) => ({
-                    ...currentForm,
-                    priority: event.target.value as Priority,
-                  }))
-                }
-                className="input-field"
-              >
-                {PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+              Quantity
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={form.quantity}
+              onChange={(event) =>
+                setForm((currentForm) => ({
+                  ...currentForm,
+                  quantity: Math.max(1, Number(event.target.value) || 1),
+                }))
+              }
+              className="input-field"
+            />
           </div>
           <div>
+            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+              Priority
+            </label>
+            <select
+              value={form.priority}
+              onChange={(event) =>
+                setForm((currentForm) => ({
+                  ...currentForm,
+                  priority: event.target.value as Priority,
+                }))
+              }
+              className="input-field"
+            >
+              {PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
             <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
               Reason
             </label>
@@ -676,20 +778,21 @@ export default function DeviceRequests() {
             />
           </div>
           {lookupErrorMessage ? (
-            <p className="text-xs" style={{ color: 'var(--error-text)' }}>
+            <p className="text-xs sm:col-span-2" style={{ color: 'var(--error-text)' }}>
               {lookupErrorMessage}
             </p>
           ) : null}
         </div>
-        <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setShowModal(false)} className="btn-ghost px-5 py-2.5 rounded-xl">
-            Cancel
-          </button>
-          <button onClick={() => void handleCreate()} className="btn-primary" disabled={isSubmitting}>
-            {isSubmitting ? 'Submitting...' : 'Submit Request'}
-          </button>
-        </div>
-      </Modal>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={() => setShowModal(false)} className="btn-ghost px-5 py-2.5 rounded-xl">
+              Cancel
+            </button>
+            <button onClick={() => void handleCreate()} className="btn-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting...' : 'Submit Request'}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
 
       <ConfirmDialog
         isOpen={Boolean(confirm)}
@@ -697,11 +800,20 @@ export default function DeviceRequests() {
         onConfirm={() => {
           if (confirm?.action === 'reject') {
             void handleReject(confirm.requestId)
+            return
+          }
+
+          if (confirm?.action === 'delete') {
+            void handleDelete(confirm.requestId)
           }
         }}
         danger
-        title="Reject Request"
-        message="Are you sure you want to reject this device request?"
+        title={confirm?.action === 'delete' ? 'Delete Request' : 'Reject Request'}
+        message={
+          confirm?.action === 'delete'
+            ? `Are you sure you want to delete ${confirm.requestLabel}?`
+            : `Are you sure you want to reject ${confirm?.requestLabel ?? 'this device request'}?`
+        }
       />
     </div>
   )

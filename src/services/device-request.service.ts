@@ -44,6 +44,9 @@ const isDeviceRequestApiItem = (value: unknown): value is DeviceRequestApiItem =
   return (
     typeof value.request_id === 'number' &&
     typeof value.requested_by === 'number' &&
+    (typeof value.requested_for === 'string' ||
+      value.requested_for === null ||
+      value.requested_for === undefined) &&
     typeof value.requester_name === 'string' &&
     typeof value.department_id === 'number' &&
     typeof value.department_name === 'string' &&
@@ -224,6 +227,7 @@ const mapDeviceRequestItem = (request: DeviceRequestApiItem): DeviceRequestListI
     id: formatDeviceRequestDisplayId(request.request_id),
     requestedById: request.requested_by,
     requestedBy: request.requester_name,
+    requestedFor: typeof request.requested_for === 'string' ? request.requested_for : '',
     departmentId: request.department_id,
     department: request.department_name,
     deviceType: request.device_type,
@@ -468,4 +472,21 @@ export async function approveDeviceRequestById(
 
   emitDeviceRequestsChanged()
   return null
+}
+
+export async function deleteDeviceRequestById(requestId: number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/device-requests/${requestId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    const errorBody = await readErrorBody(response)
+    throw new Error(errorBody || `Failed to delete device request (${response.status})`)
+  }
+
+  emitDeviceRequestsChanged()
 }

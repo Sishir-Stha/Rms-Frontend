@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { isAdminAllowedNavPath, isAdminDepartment } from '../utils/access-control'
 
 interface SidebarProps {
   isOpen: boolean
@@ -37,6 +38,9 @@ const NAV_ITEMS: NavItem[] = [
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { currentUser } = useAuth()
   const location = useLocation()
+  const visibleNavItems = isAdminDepartment(currentUser?.department)
+    ? NAV_ITEMS.filter((item) => isAdminAllowedNavPath(item.to))
+    : NAV_ITEMS
 
   return (
     <aside
@@ -82,7 +86,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       )}
 
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-        {NAV_ITEMS.map(({ icon: Icon, label, to }) => {
+        {visibleNavItems.map(({ icon: Icon, label, to }) => {
           const isActive =
             to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
 

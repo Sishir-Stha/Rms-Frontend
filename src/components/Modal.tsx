@@ -36,12 +36,6 @@ export default function Modal({
     return null
   }
 
-  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.target === event.currentTarget) {
-      onClose()
-    }
-  }
-
   const handleMouseEnter = (event: MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.style.background = 'var(--surface-container)'
   }
@@ -54,7 +48,6 @@ export default function Modal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'var(--modal-overlay)', backdropFilter: 'blur(6px)' }}
-      onClick={handleBackdropClick}
     >
       <div
         className={`w-full ${SIZE_MAP[size]} animate-fade-in rounded-2xl shadow-ambient`}

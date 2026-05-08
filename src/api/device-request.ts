@@ -2,6 +2,7 @@
 export interface DeviceRequest {
   request_id: number
   requested_by: number
+  requested_for?: string | null
   requester_name: string
   department_id: number
   department_name: string
@@ -43,6 +44,7 @@ export interface CreateDeviceRequestRequest {
   reason: string
   quantity: number
   priority: string
+  requested_for: string
 }
 
 export interface CreateDeviceRequestResponse {
@@ -61,6 +63,7 @@ export interface UpdateDeviceRequestRequest {
   reason: string
   quantity: number
   priority: string
+  requested_for: string
   request_date: string
   approval_status: string
   approved_by: number

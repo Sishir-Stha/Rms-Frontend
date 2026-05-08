@@ -105,10 +105,12 @@ export default function RepairManagement() {
       setErrorMessage(null)
 
       try {
+        // Fetch all repairs with status filter only
+        // Client-side search filtering will be applied in useMemo below
         const response = await fetchRepairs(
           {
             status: statusFilter === 'All' ? '' : statusFilter,
-            device_name: search.trim(),
+            device_name: ''
           },
           abortController.signal,
         )
@@ -136,7 +138,7 @@ export default function RepairManagement() {
     return () => {
       abortController.abort()
     }
-  }, [refreshKey, search, statusFilter])
+  }, [refreshKey, statusFilter])
 
   useEffect(() => {
     if (!showCreateModal) {
@@ -205,17 +207,19 @@ export default function RepairManagement() {
     }
   }, [categories.length, currentUser?.id, departments.length, showCreateModal, users.length, vendors.length])
 
+  // Client-side filtering for status and device name search
+  // This ensures real-time search without additional API calls
   const filtered = useMemo(() => {
     return repairs.filter((repair) => {
+      // Filter by selected status
       const matchesStatus =
         statusFilter === 'All' || repair.status === statusFilter
-      const query = search.toLowerCase()
+
+      // Filter by device name (case-insensitive)
+      // If search is empty, all repairs match the search filter
+      const query = search.toLowerCase().trim()
       const matchesSearch =
-        !query ||
-        repair.id.toLowerCase().includes(query) ||
-        repair.device.toLowerCase().includes(query) ||
-        repair.issue.toLowerCase().includes(query) ||
-        repair.reportedBy.toLowerCase().includes(query)
+        !query || repair.device.toLowerCase().includes(query)
 
       return matchesStatus && matchesSearch
     })
@@ -248,9 +252,10 @@ export default function RepairManagement() {
     })()
   }
 
+  // Handle search input change with real-time filtering
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSearch(event.target.value)
-    setPage(1)
+    setPage(1) // Reset to first page when search term changes
   }
 
   const openCreateModal = () => {
@@ -315,6 +320,7 @@ export default function RepairManagement() {
       }
     })()
   }
+ 
 
   return (
     <div className="p-6 space-y-5">
@@ -349,7 +355,7 @@ export default function RepairManagement() {
             <input
               value={search}
               onChange={handleSearchChange}
-              placeholder="Search ID, device, issue..."
+              placeholder="Search by device name..."
               className="input-field pl-9 py-2.5 w-full"
             />
           </div>
