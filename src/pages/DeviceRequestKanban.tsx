@@ -12,6 +12,7 @@ import {
 } from '../services/device-request.service'
 import type { RequestApprovalStatus } from '../types/app'
 import type { DeviceRequestListItem } from '../types/device-request.types'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
 interface KanbanColumn {
   id: RequestApprovalStatus
@@ -26,7 +27,7 @@ interface ConfirmState {
 
 const COLUMNS: KanbanColumn[] = [
   { id: 'Requested', label: 'Requested', color: '#bac5ee' },
-  { id: 'Pending', label: 'Pending', color: '#f59e0b' },
+  { id: 'Pending', label: 'Recommended', color: '#f59e0b' },
   { id: 'Approved', label: 'Approved', color: '#16a34a' },
   { id: 'Rejected', label: 'Rejected', color: '#dc2626' },
 ]
@@ -155,7 +156,10 @@ export default function DeviceRequestKanban() {
           updateCard(updatedCard)
         }
 
-        showToast(`Request moved to ${col}`, col === 'Approved' ? 'success' : 'info')
+        showToast(
+          `Request moved to ${formatDeviceRequestStatus(col)}`,
+          col === 'Approved' ? 'success' : 'info',
+        )
         return
       }
 
@@ -165,7 +169,7 @@ export default function DeviceRequestKanban() {
         updateCard(updatedCard)
       }
 
-      showToast(`Request moved to ${col}`, 'info')
+      showToast(`Request moved to ${formatDeviceRequestStatus(col)}`, 'info')
     } catch (error) {
       setCards(previousCards)
       showToast(
@@ -312,7 +316,7 @@ export default function DeviceRequestKanban() {
                       {card.brand || '-'}
                     </p>
                     <div className="mt-2">
-                      <StatusBadge status={card.approvalStatus} />
+                      <StatusBadge status={formatDeviceRequestStatus(card.approvalStatus)} />
                     </div>
                     <div
                       className="mt-3 pt-2 flex items-center justify-between"

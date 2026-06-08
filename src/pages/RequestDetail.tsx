@@ -35,6 +35,7 @@ import type {
   RepairDepartmentOption,
   RepairUserOption,
 } from '../types/repair.types'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
 interface RequestDetailFormState {
   requestId: number
@@ -400,7 +401,7 @@ export default function RequestDetail() {
   if (form.approvalStatus === 'Pending') {
     timeline.push({
       color: '#f59e0b',
-      title: 'Moved to Pending review',
+      title: 'Moved to Recommended review',
       date: form.requestDate,
     })
   }
@@ -451,7 +452,7 @@ export default function RequestDetail() {
             <h1 className="font-bold text-xl tracking-tight" style={{ color: 'var(--on-surface)' }}>
               {form.id}
             </h1>
-            <StatusBadge status={form.approvalStatus} />
+            <StatusBadge status={formatDeviceRequestStatus(form.approvalStatus)} />
             <StatusBadge status={form.priority} />
           </div>
         </div>
@@ -628,7 +629,7 @@ export default function RequestDetail() {
                 >
                   {REQUEST_STATUSES.map((status) => (
                     <option key={status} value={status}>
-                      {status}
+                      {formatDeviceRequestStatus(status)}
                     </option>
                   ))}
                 </select>
@@ -707,7 +708,7 @@ export default function RequestDetail() {
                   Current Status
                 </p>
                 <div className="mt-1">
-                  <StatusBadge status={form.approvalStatus} />
+                  <StatusBadge status={formatDeviceRequestStatus(form.approvalStatus)} />
                 </div>
               </div>
             </div>
@@ -754,7 +755,7 @@ export default function RequestDetail() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <StatusBadge status={request.approvalStatus} />
+                      <StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} />
                       <ChevronRight size={12} style={{ color: 'var(--muted)' }} />
                     </div>
                   </button>

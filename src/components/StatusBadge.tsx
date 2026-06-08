@@ -6,6 +6,7 @@ const STATUS_MAP: Record<string, { cls: string; label: string }> = {
   Open: { cls: 'badge-warning', label: 'Open' },
   Requested: { cls: 'badge-neutral', label: 'Requested' },
   Pending: { cls: 'badge-warning', label: 'Pending' },
+  Recommended: { cls: 'badge-warning', label: 'Recommended' },
   'In Progress': { cls: 'badge-info', label: 'In Progress' },
   Resolved: { cls: 'badge-success', label: 'Resolved' },
   Closed: { cls: 'badge-success', label: 'Closed' },

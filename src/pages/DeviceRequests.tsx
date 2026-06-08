@@ -36,6 +36,7 @@ import {
   canCreateDeviceRequestForDepartment,
   isAdminDepartment,
 } from '../utils/access-control'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
 interface DeviceRequestFormData {
   requestedById: number
@@ -82,7 +83,7 @@ const SUMMARY_COLORS: Record<RequestApprovalStatus, string> = {
 const getEmptyMessage = (statusFilter: StatusFilter): string =>
   statusFilter === 'All'
     ? 'No device requests found'
-    : `No records found for status: ${statusFilter}`
+    : `No records found for status: ${formatDeviceRequestStatus(statusFilter)}`
 
 export default function DeviceRequests() {
   const { currentUser } = useAuth()
@@ -383,7 +384,9 @@ export default function DeviceRequests() {
             <p className="font-display font-bold text-2xl" style={{ color: SUMMARY_COLORS[status] }}>
               {requests.filter((request) => request.approvalStatus === status).length}
             </p>
-            <p className="text-xs text-on-surface-variant mt-1">{status}</p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {formatDeviceRequestStatus(status)}
+            </p>
           </div>
         ))}
       </div>
@@ -412,7 +415,7 @@ export default function DeviceRequests() {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
               >
-                {status}
+                {formatDeviceRequestStatus(status)}
               </button>
             ))}
           </div>
@@ -490,7 +493,7 @@ export default function DeviceRequests() {
                         <StatusBadge status={request.priority} />
                       </td>
                       <td onClick={(event) => event.stopPropagation()}>
-                        <StatusBadge status={request.approvalStatus} />
+                        <StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} />
                       </td>
                       <td
                         className="text-xs"
