@@ -24,7 +24,12 @@ import {
   createDeviceStock,
   deleteDeviceStock,
   type CreateDeviceStockRequest,
+  type DeleteDeviceStockRequest,
 } from '../api/device-stock'
+import { getDepartments, type Department } from '../api/department'
+
+// Get current user ID (you may need to get this from context)
+const CURRENT_USER_ID = 1
 
 import type {
   DeviceStockRecord,
@@ -36,8 +41,8 @@ interface DeviceStockFormData {
   date: string
   originSector: string
   originDepartment: string
-  destination: string
-  destinationRequest: string
+  destinationSector: string
+  destinationDepartment: string
   status: DeviceStockStatus
 }
 
@@ -72,8 +77,8 @@ const emptyForm: DeviceStockFormData = {
   date: '',
   originSector: '',
   originDepartment: '',
-  destination: '',
-  destinationRequest: '',
+  destinationSector: '',
+  destinationDepartment: '',
   status: 'IN',
 }
 
@@ -91,6 +96,9 @@ export default function DeviceStock() {
 
   const [stocks, setStocks] =
     useState<DeviceStockRecord[]>([])
+
+  const [departments, setDepartments] =
+    useState<Department[]>([])
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] =
@@ -118,22 +126,22 @@ export default function DeviceStock() {
       setIsLoading(true)
 
       try {
-        const response = await getDeviceStocks({
-          page: 1,
-          limit: 100,
-        })
+        const response = await getDeviceStocks()
 
         if (response.success && response.data) {
           const formattedStocks: DeviceStockRecord[] =
             response.data.result.map((stock) => ({
-              id: stock.id,
-              deviceCategory: stock.deviceCategory,
-              date: stock.date,
-              originSector: stock.originSector,
-              originDepartment: stock.originDepartment,
-              destination: stock.destinationDepartment || null,
+              id: String(stock.stock_id),
+              deviceCategory: stock.category_name || '',
+              date: stock.date || '',
+              originSector: stock.origin_sector || '',
+              originDepartment:
+                stock.origin_department_name || '',
+              destination:
+                stock.destination_department_name ||
+                null,
               destinationRequest:
-                stock.destinationSector || null,
+                stock.destination_sector || null,
               status: stock.status,
             }))
           setStocks(formattedStocks)
@@ -149,7 +157,26 @@ export default function DeviceStock() {
       }
     }
 
+    const fetchDepartments = async () => {
+      try {
+        const response = await getDepartments({
+          department_name: '',
+          department_code: '',
+        })
+        if (response.success && response.data) {
+          setDepartments(response.data.result)
+        }
+      } catch (error) {
+        console.error('Failed to load departments:', error)
+        showToast(
+          'Failed to load departments',
+          'error',
+        )
+      }
+    }
+
     void loadStocks()
+    void fetchDepartments()
   }, [])
 
   const filteredStocks = useMemo(() => {
@@ -197,7 +224,7 @@ export default function DeviceStock() {
   }
 
   const handleCreate = async () => {
-    if (
+      if (
       !form.deviceCategory ||
       !form.date ||
       !form.originSector ||
@@ -213,15 +240,34 @@ export default function DeviceStock() {
     setIsSubmitting(true)
 
     try {
+      // Find the selected device category ID
+      const selectedCategory =
+        DEVICE_CATEGORIES.find(
+          (cat) => cat.name === form.deviceCategory,
+        )
+      const selectedDepartment =
+        departments.find(
+          (dept) => dept.department_name === form.originDepartment,
+        )
+      const selectedDestDepartment =
+        departments.find(
+          (dept) => dept.department_name === form.destinationDepartment,
+        )
+
       const payload: CreateDeviceStockRequest = {
-        deviceCategory: form.deviceCategory,
+        device_category_id: selectedCategory?.id || 0,
+        device_code: null,
         date: form.date,
-        originSector: form.originSector,
-        originDepartment: form.originDepartment,
-        destinationSector: form.destination || undefined,
-        destinationDepartment: form.destinationRequest || undefined,
-        deviceQuantity: 1,
+        origin_sector: form.originSector,
+        origin_department: selectedDepartment?.id || 0,
+        destination_sector:
+          form.destinationSector || null,
+        destination_department:
+          selectedDestDepartment?.id || null,
+        device_quantity: 1,
         status: form.status,
+        created_by: CURRENT_USER_ID,
+        issue: null,
       }
 
       const response =
@@ -238,10 +284,7 @@ export default function DeviceStock() {
 
         // Reload stocks
         const reloadResponse =
-          await getDeviceStocks({
-            page: 1,
-            limit: 100,
-          })
+          await getDeviceStocks()
 
         if (
           reloadResponse.success &&
@@ -250,18 +293,20 @@ export default function DeviceStock() {
           const formattedStocks: DeviceStockRecord[] =
             reloadResponse.data.result.map(
               (stock) => ({
-                id: stock.id,
+                id: String(stock.stock_id),
                 deviceCategory:
-                  stock.deviceCategory,
-                date: stock.date,
-                originSector: stock.originSector,
+                  stock.category_name || '',
+                date: stock.date || '',
+                originSector:
+                  stock.origin_sector || '',
                 originDepartment:
-                  stock.originDepartment,
+                  stock.origin_department_name || '',
                 destination:
-                  stock.destinationDepartment ||
+                  stock
+                    .destination_department_name ||
                   null,
                 destinationRequest:
-                  stock.destinationSector || null,
+                  stock.destination_sector || null,
                 status: stock.status,
               }),
             )
@@ -284,8 +329,16 @@ export default function DeviceStock() {
 
   const handleDelete = async (stockId: string) => {
     try {
+      const deletePayload: DeleteDeviceStockRequest =
+        {
+          updated_by: CURRENT_USER_ID,
+        }
+
       const response =
-        await deleteDeviceStock(stockId)
+        await deleteDeviceStock(
+          Number(stockId),
+          deletePayload,
+        )
 
       if (response.success) {
         setStocks((prev) =>
@@ -425,11 +478,16 @@ export default function DeviceStock() {
               <tr>
                 <th>ID</th>
                 <th>Device Category</th>
+                <th>Device Code</th>
                 <th>Origin Sector</th>
-                <th>Department</th>
-                <th>Destination</th>
+                <th>Origin Department</th>
+                <th>Destination Sector</th>
+                <th>Destination Department</th>
+                <th>Issue/Reason</th>
+                <th>Date</th>
+                <th>Quantity</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th>Action</th>
               </tr>
             </thead>
 
@@ -452,15 +510,25 @@ export default function DeviceStock() {
 
                   <td>{stock.deviceCategory}</td>
 
+                  <td>—</td>
+
                   <td>{stock.originSector}</td>
 
                   <td>
                     {stock.originDepartment}
                   </td>
 
+                  <td>—</td>
+
                   <td>
                     {stock.destination || '—'}
                   </td>
+
+                  <td>—</td>
+
+                  <td>{stock.date}</td>
+
+                  <td className="text-center">1</td>
 
                   <td>
                     <StatusBadge
@@ -477,6 +545,7 @@ export default function DeviceStock() {
                           )
                         }
                         className="btn-secondary px-2 py-1"
+                        title="Edit"
                       >
                         <Edit2 size={12} />
                       </button>
@@ -495,6 +564,7 @@ export default function DeviceStock() {
                           background:
                             'var(--error-bg)',
                         }}
+                        title="Delete"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -625,45 +695,67 @@ export default function DeviceStock() {
               className="input-field"
             >
               <option value="">
-                Department
+                Origin Department
               </option>
 
-              {DEPARTMENTS.map((department) => (
+              {departments.map((dept) => (
                 <option
-                  key={department.id}
-                  value={department.name}
+                  key={dept.department_id}
+                  value={dept.department_name}
                 >
-                  {department.name}
+                  {dept.department_name}
                 </option>
               ))}
             </select>
 
-            <input
-              type="text"
-              placeholder="Destination"
-              value={form.destination}
+            <select
+              value={form.destinationSector}
               onChange={(e) =>
                 setForm({
                   ...form,
-                  destination: e.target.value,
+                  destinationSector: e.target.value,
                 })
               }
               className="input-field"
-            />
+            >
+              <option value="">
+                Destination Sector
+              </option>
 
-            <input
-              type="text"
-              placeholder="Destination Request"
-              value={form.destinationRequest}
+              {ORIGIN_SECTORS.map((sector) => (
+                <option
+                  key={sector}
+                  value={sector}
+                >
+                  {sector}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={form.destinationDepartment}
               onChange={(e) =>
                 setForm({
                   ...form,
-                  destinationRequest:
+                  destinationDepartment:
                     e.target.value,
                 })
               }
               className="input-field"
-            />
+            >
+              <option value="">
+                Destination Department
+              </option>
+
+              {departments.map((dept) => (
+                <option
+                  key={dept.department_id}
+                  value={dept.department_name}
+                >
+                  {dept.department_name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <select

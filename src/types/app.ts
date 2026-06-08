@@ -5,6 +5,7 @@ export type TicketStatus = 'Open' | 'In Progress' | 'Resolved'
 export type Priority = 'Critical' | 'High' | 'Medium' | 'Low'
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
+export type DeviceStockStatus = 'IN' | 'OUT'
 
 export interface AppUser {
   id: number
@@ -39,7 +40,17 @@ export interface DeviceCategoryRecord {
   icon: string
   count: number
 }
-
+export interface DeviceStockRecord {
+  id: string
+  deviceCategory: string
+  issue?: string
+  date: string
+  originSector: string
+  originDepartment: string
+  destination: string | null
+  destinationRequest: string | null
+  status: DeviceStockStatus
+}
 export interface RepairRecord {
   id: string
   device: string

@@ -1,32 +1,33 @@
-const API_BASE_URL = 'http://localhost:4000/api/v1'
-
-// =======================
-// 📦 TYPES
-// =======================
-
+// Get Device Stocks List
 export interface DeviceStock {
-  id: string
-  deviceCategory: string
-  deviceCode?: string
-  date: string
-  originSector: string
-  originDepartment: string
-  destinationSector?: string
-  destinationDepartment?: string
-  issue?: string
-  deviceQuantity: number
+  stock_id: number
+  device_category_id: number
+  category_name?: string
+
+  device_code: string | null
+  issue: string | null
+  date: string | null
+
+  origin_sector: string | null
+  origin_department: number
+  origin_department_name?: string
+
+  destination_sector: string | null
+  destination_department: number | null
+  destination_department_name?: string | null
+
+  device_quantity: number
   status: 'IN' | 'OUT'
-}
 
-// =======================
-// 📥 GET LIST
-// =======================
+  created_by: number
+  created_by_name?: string
 
-export interface GetDeviceStocksRequest {
-  search?: string
-  status?: 'IN' | 'OUT' | ''
-  page?: number
-  limit?: number
+  updated_by: number | null
+  updated_by_name?: string | null
+
+  created_at: string | null
+  updated_at: string | null
+  deleted_at: string | null
 }
 
 export interface GetDeviceStocksResponse {
@@ -34,99 +35,125 @@ export interface GetDeviceStocksResponse {
   message: string
   data: {
     result: DeviceStock[]
-    pagination: {
-      page: number
-      limit: number
-      total: number
-      totalPages: number
-    }
   }
 }
 
-// =======================
-// ➕ CREATE
-// =======================
+// Get Single Device Stock
+export interface GetSingleDeviceStockResponse {
+  success: boolean
+  message: string
+  data: {
+    result: DeviceStock
+  }
+}
 
+// Create Device Stock
 export interface CreateDeviceStockRequest {
-  deviceCategory: string
-  deviceCode?: string
-  date: string
-  originSector: string
-  originDepartment: string
-  destinationSector?: string
-  destinationDepartment?: string
-  issue?: string
-  deviceQuantity: number
+  device_category_id: number
+  device_code: string | null
+  issue: string | null
+  date: string | null
+  origin_sector: string | null
+  origin_department: number
+  destination_sector: string | null
+  destination_department: number | null
+  device_quantity: number
   status: 'IN' | 'OUT'
+  created_by: number
 }
 
 export interface CreateDeviceStockResponse {
   success: boolean
   message: string
   data: {
-    id: number
+    stock_id: number
   }
 }
 
-// =======================
-// ✏️ UPDATE
-// =======================
-
+// Update Device Stock
 export interface UpdateDeviceStockRequest {
-  deviceCategory?: string
-  deviceCode?: string
-  date?: string
-  originSector?: string
-  originDepartment?: string
-  destinationSector?: string
-  destinationDepartment?: string
-  issue?: string
-  deviceQuantity?: number
-  status?: 'IN' | 'OUT'
+  device_category_id: number | null
+  device_code: string | null
+  issue: string | null
+  date: string | null
+  origin_sector: string | null
+  origin_department: number | null
+  destination_sector: string | null
+  destination_department: number | null
+  device_quantity: number | null
+  status: 'IN' | 'OUT' | null
+  updated_by: number
 }
 
 export interface UpdateDeviceStockResponse {
   success: boolean
   message: string
   data: {
-    result: boolean
+    result: DeviceStock
   }
 }
 
-// =======================
-// 🗑️ DELETE
-// =======================
+// Update Device Stock Status
+export interface UpdateDeviceStockStatusRequest {
+  status: 'IN' | 'OUT'
+  updated_by: number
+}
+
+export interface UpdateDeviceStockStatusResponse {
+  success: boolean
+  message: string
+  data: {
+    result: DeviceStock
+  }
+}
+
+// Transfer Device Stock
+export interface TransferDeviceStockRequest {
+  destination_sector: string | null
+  destination_department: number
+  updated_by: number
+}
+
+export interface TransferDeviceStockResponse {
+  success: boolean
+  message: string
+  data: {
+    result: DeviceStock
+  }
+}
+
+// Delete Device Stock
+export interface DeleteDeviceStockRequest {
+  updated_by: number
+}
 
 export interface DeleteDeviceStockResponse {
   success: boolean
   message: string
-  data: Record<string, never>
+  data: {}
 }
 
-// =======================
-// 🔌 API FUNCTIONS
-// =======================
+const API_BASE_URL = 'http://localhost:4000/api/v1'
 
-// 📥 GET LIST
 export const getDeviceStocks = async (
-  params: GetDeviceStocksRequest
+  status: string = '',
+  device_category_id: string | number = '',
+  origin_department: string | number = '',
+  destination_department: string | number = ''
 ): Promise<GetDeviceStocksResponse> => {
-  const query = new URLSearchParams({
-    search: params.search ?? '',
-    status: params.status ?? '',
-    page: String(params.page ?? 1),
-    limit: String(params.limit ?? 10),
-  })
+  const params = new URLSearchParams()
 
-  const response = await fetch(
-    `${API_BASE_URL}/device-stock?${query.toString()}`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }
-  )
+  if (status) params.append('status', status)
+  if (device_category_id) params.append('device_category_id', String(device_category_id))
+  if (origin_department) params.append('origin_department', String(origin_department))
+  if (destination_department) params.append('destination_department', String(destination_department))
+
+  const response = await fetch(`${API_BASE_URL}/device-stock?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
     throw new Error('Failed to fetch device stocks')
@@ -135,33 +162,15 @@ export const getDeviceStocks = async (
   return response.json()
 }
 
-// ➕ CREATE
-export const createDeviceStock = async (
-  data: CreateDeviceStockRequest
-): Promise<CreateDeviceStockResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/device-stock`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error('Failed to create device stock')
-  }
-
-  return response.json()
-}
-
-// 🔍 GET BY ID
-export const getDeviceStockById = async (id: string) => {
-  const response = await fetch(
-    `${API_BASE_URL}/device-stock/${id}`
-  )
+export const getSingleDeviceStock = async (
+  stockId: number
+): Promise<GetSingleDeviceStockResponse> => {
+  const response = await fetch(`${API_BASE_URL}/device-stock/${stockId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  })
 
   if (!response.ok) {
     throw new Error('Failed to fetch device stock')
@@ -170,21 +179,35 @@ export const getDeviceStockById = async (id: string) => {
   return response.json()
 }
 
-// ✏️ UPDATE
+export const createDeviceStock = async (
+  stockData: CreateDeviceStockRequest
+): Promise<CreateDeviceStockResponse> => {
+  const response = await fetch(`${API_BASE_URL}/device-stock`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(stockData),
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to create device stock')
+  }
+
+  return response.json()
+}
+
 export const updateDeviceStock = async (
-  id: string,
-  data: UpdateDeviceStockRequest
+  stockId: number,
+  stockData: UpdateDeviceStockRequest
 ): Promise<UpdateDeviceStockResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/device-stock/${id}`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    }
-  )
+  const response = await fetch(`${API_BASE_URL}/device-stock/${stockId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(stockData),
+  })
 
   if (!response.ok) {
     throw new Error('Failed to update device stock')
@@ -193,16 +216,55 @@ export const updateDeviceStock = async (
   return response.json()
 }
 
-// 🗑️ DELETE
+export const updateDeviceStockStatus = async (
+  stockId: number,
+  statusData: UpdateDeviceStockStatusRequest
+): Promise<UpdateDeviceStockStatusResponse> => {
+  const response = await fetch(`${API_BASE_URL}/device-stock/${stockId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(statusData),
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to update device stock status')
+  }
+
+  return response.json()
+}
+
+export const transferDeviceStock = async (
+  stockId: number,
+  transferData: TransferDeviceStockRequest
+): Promise<TransferDeviceStockResponse> => {
+  const response = await fetch(`${API_BASE_URL}/device-stock/${stockId}/transfer`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(transferData),
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to transfer device stock')
+  }
+
+  return response.json()
+}
+
 export const deleteDeviceStock = async (
-  id: string
+  stockId: number,
+  deleteData: DeleteDeviceStockRequest
 ): Promise<DeleteDeviceStockResponse> => {
-  const response = await fetch(
-    `${API_BASE_URL}/device-stock/${id}`,
-    {
-      method: 'DELETE',
-    }
-  )
+  const response = await fetch(`${API_BASE_URL}/device-stock/${stockId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(deleteData),
+  })
 
   if (!response.ok) {
     throw new Error('Failed to delete device stock')

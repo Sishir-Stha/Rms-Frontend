@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   BarChart3,
+  Box,
   ChevronLeft,
   ChevronRight,
   KanbanSquare,
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: KanbanSquare, label: 'Repair Kanban', to: '/repair-kanban' },
   { icon: Monitor, label: 'Device Requests', to: '/requests' },
   { icon: KanbanSquare, label: 'Request Kanban', to: '/request-kanban' },
+  { icon: Box, label: 'Device Stock', to: '/device-stock' },
   { icon: BarChart3, label: 'Reports', to: '/reports' },
   { icon: Settings, label: 'Settings', to: '/settings' },
 ]

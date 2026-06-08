@@ -7,7 +7,6 @@ import {
   Calendar,
   ChevronRight,
   Clock3,
-  Edit3,
   Hash,
   Package,
   Save,
@@ -26,11 +25,15 @@ import {
 } from '../data/dummyData'
 
 import {
-  getDeviceStockById,
+  getSingleDeviceStock,
   updateDeviceStock,
   deleteDeviceStock,
   type UpdateDeviceStockRequest,
+  type DeleteDeviceStockRequest,
 } from '../api/device-stock'
+
+// Get current user ID (you may need to get this from context)
+const CURRENT_USER_ID = 1
 
 import type {
   DeviceStockStatus,
@@ -152,7 +155,8 @@ function TimelineItem({
 }
 
 export default function DeviceStockDetail() {
-  const { id } = useParams<{ id: string }>()
+  const params = useParams<{ id: string }>()
+  const id = params.id
 
   const navigate = useNavigate()
 
@@ -161,11 +165,11 @@ export default function DeviceStockDetail() {
   const [form, setForm] =
     useState<DeviceStockFormData | null>(null)
 
+  const [originalForm, setOriginalForm] =
+    useState<DeviceStockFormData | null>(null)
+
   const [isLoading, setIsLoading] =
     useState(true)
-
-  const [isEditing, setIsEditing] =
-    useState(false)
 
   const [isSubmitting, setIsSubmitting] =
     useState(false)
@@ -181,27 +185,32 @@ export default function DeviceStockDetail() {
 
       try {
         const response =
-          await getDeviceStockById(id)
+          await getSingleDeviceStock(
+            Number(id),
+          )
 
         if (response.success && response.data) {
           const stock = response.data.result
 
-          setForm({
-            id: stock.id,
+          const stockData = {
+            id: String(stock.stock_id),
             deviceCategory:
-              stock.deviceCategory,
+              stock.category_name || '',
             issue: stock.issue || '',
-            date: stock.date,
+            date: stock.date || '',
             originSector:
-              stock.originSector,
+              stock.origin_sector || '',
             originDepartment:
-              stock.originDepartment,
+              stock.origin_department_name || '',
             destination:
-              stock.destinationDepartment || '',
+              stock.destination_sector || '',
             destinationRequest:
-              stock.destinationSector || '',
+              stock
+                .destination_department_name || '',
             status: stock.status,
-          })
+          }
+          setForm(stockData)
+          setOriginalForm(stockData)
         } else {
           showToast(
             'Device stock record not found',
@@ -261,20 +270,38 @@ export default function DeviceStockDetail() {
     setIsSubmitting(true)
 
     try {
+      // Find the selected device category ID
+      const selectedCategory =
+        DEVICE_CATEGORIES.find(
+          (cat) => cat.name === form.deviceCategory,
+        )
+      const selectedDepartment =
+        DEPARTMENTS.find(
+          (dept) => dept.name === form.originDepartment,
+        )
+
       const payload: UpdateDeviceStockRequest = {
-        deviceCategory: form.deviceCategory,
+        device_category_id:
+          selectedCategory?.id || null,
         date: form.date,
-        originSector: form.originSector,
-        originDepartment: form.originDepartment,
-        destinationSector: form.destination || undefined,
-        destinationDepartment:
-          form.destinationRequest || undefined,
-        issue: form.issue || undefined,
+        origin_sector: form.originSector,
+        origin_department:
+          selectedDepartment?.id || null,
+        destination_sector:
+          form.destination || null,
+        destination_department: null,
+        device_quantity: 1,
+        issue: form.issue || null,
         status: form.status,
+        updated_by: CURRENT_USER_ID,
+        device_code: null,
       }
 
       const response =
-        await updateDeviceStock(id || '', payload)
+        await updateDeviceStock(
+          Number(id),
+          payload,
+        )
 
       if (response.success) {
         showToast(
@@ -282,7 +309,7 @@ export default function DeviceStockDetail() {
           'success',
         )
 
-        setIsEditing(false)
+        setOriginalForm(form)
       }
     } catch (error) {
       console.error(
@@ -300,8 +327,16 @@ export default function DeviceStockDetail() {
 
   const handleDelete = async () => {
     try {
+      const deletePayload: DeleteDeviceStockRequest =
+        {
+          updated_by: CURRENT_USER_ID,
+        }
+
       const response =
-        await deleteDeviceStock(id || '')
+        await deleteDeviceStock(
+          Number(id),
+          deletePayload,
+        )
 
       if (response.success) {
         showToast(
@@ -324,6 +359,11 @@ export default function DeviceStockDetail() {
       setShowDelete(false)
     }
   }
+
+  const hasChanges = useMemo(() => {
+    if (!form || !originalForm) return false
+    return JSON.stringify(form) !== JSON.stringify(originalForm)
+  }, [form, originalForm])
 
   const sameDepartmentStocks =
     useMemo(() => {
@@ -362,68 +402,43 @@ export default function DeviceStockDetail() {
             <h1 className="font-display font-bold text-2xl text-on-surface">
               {form.id}
             </h1>
-
-            <StatusBadge
-              status={form.status}
-            />
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {isEditing ? (
-            <>
-              <button
-                onClick={() =>
-                  setIsEditing(false)
-                }
-                className="btn-secondary px-4 py-2"
-              >
-                Cancel
-              </button>
+          <button
+            onClick={() =>
+              setShowDelete(true)
+            }
+            className="btn-secondary px-4 py-2 flex items-center gap-2"
+            style={{
+              color:
+                'var(--error-text)',
+              background:
+                'var(--error-bg)',
+            }}
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
 
-              <button
-                onClick={() =>
-                  void handleSave()
-                }
-                disabled={isSubmitting}
-                className="btn-primary px-4 py-2 flex items-center gap-2"
-              >
-                <Save size={15} />
+          <button
+            onClick={() =>
+              void handleSave()
+            }
+            disabled={!hasChanges || isSubmitting}
+            className="btn-primary px-4 py-2 flex items-center gap-2"
+            style={{
+              opacity: hasChanges ? 1 : 0.5,
+              cursor: hasChanges ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <Save size={15} />
 
-                {isSubmitting
-                  ? 'Saving...'
-                  : 'Save Changes'}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() =>
-                  setShowDelete(true)
-                }
-                className="btn-secondary px-4 py-2 flex items-center gap-2"
-                style={{
-                  color:
-                    'var(--error-text)',
-                  background:
-                    'var(--error-bg)',
-                }}
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
-
-              <button
-                onClick={() =>
-                  setIsEditing(true)
-                }
-                className="btn-primary px-4 py-2 flex items-center gap-2"
-              >
-                <Edit3 size={14} />
-                Edit
-              </button>
-            </>
-          )}
+            {isSubmitting
+              ? 'Saving...'
+              : 'Save Changes'}
+          </button>
         </div>
       </div>
 
@@ -448,7 +463,6 @@ export default function DeviceStockDetail() {
                 </label>
 
                 <select
-                  disabled={!isEditing}
                   value={
                     form.deviceCategory
                   }
@@ -481,7 +495,6 @@ export default function DeviceStockDetail() {
                 </label>
 
                 <select
-                  disabled={!isEditing}
                   value={form.originSector}
                   onChange={(e) =>
                     handleChange(
@@ -510,7 +523,6 @@ export default function DeviceStockDetail() {
                 </label>
 
                 <select
-                  disabled={!isEditing}
                   value={
                     form.originDepartment
                   }
@@ -544,7 +556,6 @@ export default function DeviceStockDetail() {
 
                 <input
                   type="date"
-                  readOnly={!isEditing}
                   value={form.date}
                   onChange={(e) =>
                     handleChange(
@@ -562,7 +573,6 @@ export default function DeviceStockDetail() {
                 </label>
 
                 <textarea
-                  readOnly={!isEditing}
                   value={form.issue}
                   onChange={(e) =>
                     handleChange(
@@ -582,7 +592,6 @@ export default function DeviceStockDetail() {
 
                 <input
                   type="text"
-                  readOnly={!isEditing}
                   value={
                     form.destination
                   }
@@ -604,7 +613,6 @@ export default function DeviceStockDetail() {
 
                 <input
                   type="text"
-                  readOnly={!isEditing}
                   value={
                     form.destinationRequest
                   }
@@ -625,7 +633,6 @@ export default function DeviceStockDetail() {
                 </label>
 
                 <select
-                  disabled={!isEditing}
                   value={form.status}
                   onChange={(e) =>
                     handleChange(
