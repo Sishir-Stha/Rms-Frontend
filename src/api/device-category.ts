@@ -55,7 +55,7 @@ export interface DeleteDeviceCategoryResponse {
 }
 
 
-const API_BASE_URL = 'http://localhost:4000/api/v1'
+const API_BASE_URL = 'http://l192.168.5.59:4000/api/v1'
 
 export const getDeviceCategories = async (filters: GetDeviceCategoriesRequest): Promise<GetDeviceCategoriesResponse> => {
   const response = await fetch(`${API_BASE_URL}/device-categories/get`, {
