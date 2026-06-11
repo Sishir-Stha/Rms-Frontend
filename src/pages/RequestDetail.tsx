@@ -35,6 +35,8 @@ import type {
   RepairDepartmentOption,
   RepairUserOption,
 } from '../types/repair.types'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
+import { getUserAccess } from '../utils/access-control'
 
 interface RequestDetailFormState {
   requestId: number
@@ -161,6 +163,8 @@ export default function RequestDetail() {
   const { id } = useParams<'id'>()
   const navigate = useNavigate()
   const { currentUser } = useAuth()
+  const access = getUserAccess(currentUser?.email)
+  const isRestrictedUserFlag = access.isRestricted
   const { showToast } = useToast()
   const [form, setForm] = useState<RequestDetailFormState | null>(null)
   const [users, setUsers] = useState<RepairUserOption[]>([])
@@ -310,7 +314,7 @@ export default function RequestDetail() {
         approvalDate: currentForm.approvalDate || today,
       }
     })
-  }
+  } 
 
   const handleSave = () => {
     if (!form) {
@@ -400,7 +404,7 @@ export default function RequestDetail() {
   if (form.approvalStatus === 'Pending') {
     timeline.push({
       color: '#f59e0b',
-      title: 'Moved to Pending review',
+      title: 'Moved to Recommended review',
       date: form.requestDate,
     })
   }
@@ -451,7 +455,7 @@ export default function RequestDetail() {
             <h1 className="font-bold text-xl tracking-tight" style={{ color: 'var(--on-surface)' }}>
               {form.id}
             </h1>
-            <StatusBadge status={form.approvalStatus} />
+            <StatusBadge status={formatDeviceRequestStatus(form.approvalStatus)} />
             <StatusBadge status={form.priority} />
           </div>
         </div>
@@ -564,10 +568,11 @@ export default function RequestDetail() {
                   Requested By
                 </label>
                 <select
-                  value={String(form.requestedById)}
-                  onChange={(event) => setField('requestedById', Number(event.target.value))}
-                  className="input-field"
-                >
+  value={String(form.requestedById)}
+  onChange={(event) => setField('requestedById', Number(event.target.value))}
+  disabled={isRestrictedUserFlag}
+  className="input-field"
+> 
                   <option value="">Select requester</option>
                   {users.map((user) => (
                     <option key={user.user_id} value={user.user_id}>
@@ -581,10 +586,11 @@ export default function RequestDetail() {
                   Department
                 </label>
                 <select
-                  value={String(form.departmentId)}
-                  onChange={(event) => setField('departmentId', Number(event.target.value))}
-                  className="input-field"
-                >
+  value={String(form.departmentId)}
+  onChange={(event) => setField('departmentId', Number(event.target.value))}
+  disabled={isRestrictedUserFlag}
+  className="input-field"
+>
                   <option value="">Select department</option>
                   {departments.map((department) => (
                     <option key={department.department_id} value={department.department_id}>
@@ -598,37 +604,40 @@ export default function RequestDetail() {
                   Requested For
                 </label>
                 <input
-                  value={form.requestedFor}
-                  onChange={(event) => setField('requestedFor', event.target.value)}
-                  placeholder="e.g. New hire, Apple"
-                  className="input-field"
-                />
+  value={form.requestedFor}
+  onChange={(event) => setField('requestedFor', event.target.value)}
+  placeholder="e.g. New hire, Apple"
+  disabled={isRestrictedUserFlag}
+  className="input-field"
+/>
               </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Request Date
                 </label>
                 <input
-                  type="date"
-                  value={form.requestDate}
-                  onChange={(event) => setField('requestDate', event.target.value)}
-                  className="input-field"
-                />
+  type="date"
+  value={form.requestDate}
+  onChange={(event) => setField('requestDate', event.target.value)}
+  disabled={isRestrictedUserFlag}
+  className="input-field"
+/>
               </div>
               <div>
                 <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>
                   Status
                 </label>
                 <select
-                  value={form.approvalStatus}
-                  onChange={(event) =>
-                    handleStatusChange(event.target.value as RequestApprovalStatus)
-                  }
-                  className="input-field"
-                >
+  value={form.approvalStatus}
+  onChange={(event) =>
+    handleStatusChange(event.target.value as RequestApprovalStatus)
+  }
+  disabled={isRestrictedUserFlag}
+  className="input-field"
+>
                   {REQUEST_STATUSES.map((status) => (
                     <option key={status} value={status}>
-                      {status}
+                      {formatDeviceRequestStatus(status)}
                     </option>
                   ))}
                 </select>
@@ -707,7 +716,7 @@ export default function RequestDetail() {
                   Current Status
                 </p>
                 <div className="mt-1">
-                  <StatusBadge status={form.approvalStatus} />
+                  <StatusBadge status={formatDeviceRequestStatus(form.approvalStatus)} />
                 </div>
               </div>
             </div>
@@ -754,7 +763,7 @@ export default function RequestDetail() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <StatusBadge status={request.approvalStatus} />
+                      <StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} />
                       <ChevronRight size={12} style={{ color: 'var(--muted)' }} />
                     </div>
                   </button>

@@ -18,6 +18,8 @@ import DeviceReportDetail from './pages/reports/DeviceReportDetail'
 import RepairsReportDetail from './pages/reports/RepairsReportDetail'
 import RequestDetail from './pages/RequestDetail'
 import Settings from './pages/Settings'
+import DeviceStock from './pages/DeviceStock'
+import DeviceStockDetail from './pages/DeviceStockDetail'
 
 function AppLayout() {
   const { isAuthenticated } = useAuth()
@@ -46,6 +48,8 @@ function AppLayout() {
             <Route path="/requests" element={<ProtectedRoute><DeviceRequests /></ProtectedRoute>} />
             <Route path="/requests/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
             <Route path="/request-kanban" element={<ProtectedRoute><DeviceRequestKanban /></ProtectedRoute>} />
+            <Route path="/device-stock" element={<ProtectedRoute><DeviceStock /></ProtectedRoute>} />
+            <Route path="/device-stock/:id" element={<ProtectedRoute><DeviceStockDetail /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="/reports/repairs" element={<ProtectedRoute><RepairsReportDetail /></ProtectedRoute>} />
             <Route path="/reports/device" element={<ProtectedRoute><DeviceReportDetail /></ProtectedRoute>} />
