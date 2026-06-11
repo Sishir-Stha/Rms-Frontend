@@ -1,34 +1,83 @@
-const ADMIN_DEPARTMENT = 'Admin'
+type UserEmail = string
 
-const ADMIN_ALLOWED_NAV_PATHS = ['/', '/requests', '/request-kanban', '/reports'] as const
-const ADMIN_ALLOWED_ROUTE_PREFIXES = [
-  '/',
-  '/requests',
-  '/request-kanban',
-  '/reports',
-] as const
+export interface UserAccessConfig {
+  canCreateRequest: boolean
+  allowedRoutes: string[]
+}
 
-export const isAdminDepartment = (department: string | null | undefined): boolean =>
-  department?.trim() === ADMIN_DEPARTMENT
+const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
+  'anjana@yetiairlines.com': {
+    canCreateRequest: false,
+    allowedRoutes: [
+      '/',
+      '/requests',
+      '/request-kanban',
+      '/reports',
+    ],
+  },
+}
 
-export const isAdminAllowedNavPath = (path: string): boolean =>
-  ADMIN_ALLOWED_NAV_PATHS.includes(path as (typeof ADMIN_ALLOWED_NAV_PATHS)[number])
+const normalizeEmail = (email?: string | null) =>
+  email?.trim().toLowerCase() ?? ''
 
-export const canAccessPathForDepartment = (
-  department: string | null | undefined,
-  pathname: string,
-): boolean => {
-  if (!isAdminDepartment(department)) {
+export const getUserAccess = (email?: string | null) => {
+  const config = USER_ACCESS[normalizeEmail(email)]
+
+  if (!config) {
+    return {
+      canCreateRequest: true,
+      allowedRoutes: ['*'],
+      isRestricted: false,
+    }
+  }
+
+  return {
+    ...config,
+    isRestricted: true,
+  }
+}
+
+export const canCreateDeviceRequestForUser = (
+  email?: string | null,
+) => getUserAccess(email).canCreateRequest
+
+export const isRestrictedUser = (
+  email?: string | null,
+) => getUserAccess(email).isRestricted
+
+export const canAccessPathForUser = (
+  email?: string | null,
+  pathname?: string,
+) => {
+  if (!pathname) return false
+
+  const access = getUserAccess(email)
+
+  if (
+    !access.isRestricted ||
+    access.allowedRoutes.includes('*')
+  ) {
     return true
   }
 
-  return ADMIN_ALLOWED_ROUTE_PREFIXES.some((allowedPrefix) =>
-    allowedPrefix === '/'
+  return access.allowedRoutes.some((route) =>
+    route === '/'
       ? pathname === '/'
-      : pathname === allowedPrefix || pathname.startsWith(`${allowedPrefix}/`),
+      : pathname.startsWith(route),
   )
 }
 
-export const canCreateDeviceRequestForDepartment = (
-  department: string | null | undefined,
-): boolean => !isAdminDepartment(department)
+/**
+ * Request Kanban status change permission
+ * Anjana = view only
+ * Everyone else = allowed
+ */
+export const canUpdateRequestKanbanStatus = (
+  email?: string | null,
+) => {
+  const normalized = normalizeEmail(email)
+
+  return normalized !== 'anjana@yetiairlines.com'
+}
+
+export const isAllowedNavPath = (_path: string) => true

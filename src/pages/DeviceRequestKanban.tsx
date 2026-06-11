@@ -12,6 +12,8 @@ import {
 } from '../services/device-request.service'
 import type { RequestApprovalStatus } from '../types/app'
 import type { DeviceRequestListItem } from '../types/device-request.types'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
+import { canUpdateRequestKanbanStatus } from '../utils/access-control'
 
 interface KanbanColumn {
   id: RequestApprovalStatus
@@ -26,13 +28,16 @@ interface ConfirmState {
 
 const COLUMNS: KanbanColumn[] = [
   { id: 'Requested', label: 'Requested', color: '#bac5ee' },
-  { id: 'Pending', label: 'Pending', color: '#f59e0b' },
+  { id: 'Pending', label: 'Recommended', color: '#f59e0b' },
   { id: 'Approved', label: 'Approved', color: '#16a34a' },
   { id: 'Rejected', label: 'Rejected', color: '#dc2626' },
 ]
 
 export default function DeviceRequestKanban() {
   const { currentUser } = useAuth()
+  const canManageKanban = canUpdateRequestKanbanStatus(
+  currentUser?.email,
+)
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [cards, setCards] = useState<DeviceRequestListItem[]>([])
@@ -85,7 +90,10 @@ export default function DeviceRequestKanban() {
     return unsubscribe
   }, [])
 
-  const onDragStart = (requestId: number) => setDragging(requestId)
+  const onDragStart = (requestId: number) => {
+  if (!canManageKanban) return
+  setDragging(requestId)
+}
 
   const onDragOver = (
     event: DragEvent<HTMLDivElement>,
@@ -155,7 +163,10 @@ export default function DeviceRequestKanban() {
           updateCard(updatedCard)
         }
 
-        showToast(`Request moved to ${col}`, col === 'Approved' ? 'success' : 'info')
+        showToast(
+          `Request moved to ${formatDeviceRequestStatus(col)}`,
+          col === 'Approved' ? 'success' : 'info',
+        )
         return
       }
 
@@ -165,7 +176,7 @@ export default function DeviceRequestKanban() {
         updateCard(updatedCard)
       }
 
-      showToast(`Request moved to ${col}`, 'info')
+      showToast(`Request moved to ${formatDeviceRequestStatus(col)}`, 'info')
     } catch (error) {
       setCards(previousCards)
       showToast(
@@ -176,9 +187,10 @@ export default function DeviceRequestKanban() {
   }
 
   const onDrop = async (
-    event: DragEvent<HTMLDivElement>,
-    colId: RequestApprovalStatus,
-  ) => {
+  event: DragEvent<HTMLDivElement>,
+  colId: RequestApprovalStatus,
+) => {
+  if (!canManageKanban) return
     event.preventDefault()
 
     if (dragging === null) {
@@ -222,9 +234,14 @@ export default function DeviceRequestKanban() {
         <h2 className="font-display font-bold text-xl" style={{ color: 'var(--on-surface)' }}>
           Device Request Kanban
         </h2>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
-          Drag requests through the status workflow
-        </p>
+        <p
+  className="text-sm mt-0.5"
+  style={{ color: 'var(--on-surface-variant)' }}
+>
+  {canManageKanban
+    ? 'Drag requests through the status workflow'
+    : 'View request workflow status'}
+</p>
       </div>
 
       {errorMessage ? (
@@ -282,11 +299,15 @@ export default function DeviceRequestKanban() {
                 {columnCards.map((card) => (
                   <div
                     key={card.requestId}
-                    draggable
+                    draggable={canManageKanban}
                     onDragStart={() => onDragStart(card.requestId)}
                     onClick={() => navigate(`/requests/${card.requestId}`)}
                     title="Click to open detail"
-                    className="rounded-xl p-3 cursor-grab active:cursor-grabbing select-none"
+                    className={`rounded-xl p-3 select-none ${
+  canManageKanban
+    ? 'cursor-grab active:cursor-grabbing'
+    : 'cursor-pointer'
+}`}
                     style={{
                       background:
                         dragging === card.requestId
@@ -312,7 +333,7 @@ export default function DeviceRequestKanban() {
                       {card.brand || '-'}
                     </p>
                     <div className="mt-2">
-                      <StatusBadge status={card.approvalStatus} />
+                      <StatusBadge status={formatDeviceRequestStatus(card.approvalStatus)} />
                     </div>
                     <div
                       className="mt-3 pt-2 flex items-center justify-between"
