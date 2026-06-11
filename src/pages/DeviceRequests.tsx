@@ -33,9 +33,10 @@ import type {
   RepairUserOption,
 } from '../types/repair.types'
 import {
-  canCreateDeviceRequestForDepartment,
-  isAdminDepartment,
+  canCreateDeviceRequestForUser,
+  isRestrictedUser,
 } from '../utils/access-control'
+import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
 interface DeviceRequestFormData {
   requestedById: number
@@ -82,21 +83,21 @@ const SUMMARY_COLORS: Record<RequestApprovalStatus, string> = {
 const getEmptyMessage = (statusFilter: StatusFilter): string =>
   statusFilter === 'All'
     ? 'No device requests found'
-    : `No records found for status: ${statusFilter}`
+    : `No records found for status: ${formatDeviceRequestStatus(statusFilter)}`
 
 export default function DeviceRequests() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
-  const canCreateDeviceRequest = canCreateDeviceRequestForDepartment(currentUser?.department)
-  const isAdminUser = isAdminDepartment(currentUser?.department)
+  const canCreateDeviceRequest = canCreateDeviceRequestForUser(currentUser?.email)
+  const isRestrictedUserFlag = isRestrictedUser(currentUser?.email)
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
   const [departments, setDepartments] = useState<RepairDepartmentOption[]>([])
   const [categories, setCategories] = useState<RepairCategoryOption[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
-  const [page, setPage] = useState(1)
+  
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<DeviceRequestFormData>(emptyForm)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
@@ -174,11 +175,14 @@ export default function DeviceRequests() {
   }
 
   const filteredRequests = useMemo(() => {
-    const query = search.trim().toLowerCase()
+  const query = search.trim().toLowerCase()
 
-    return requests.filter((request) => {
+  return requests
+    .filter((request) => {
       const matchesStatus =
-        statusFilter === 'All' || request.approvalStatus === statusFilter
+        statusFilter === 'All' ||
+        request.approvalStatus === statusFilter
+
       const matchesSearch =
         query === '' ||
         request.id.toLowerCase().includes(query) ||
@@ -189,11 +193,10 @@ export default function DeviceRequests() {
 
       return matchesStatus && matchesSearch
     })
-  }, [requests, search, statusFilter])
+    .sort((a, b) => a.requestId - b.requestId) // newest IDs first
+}, [requests, search, statusFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE))
-  const paginatedRequests = filteredRequests.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
+const paginatedRequests = filteredRequests
   const resetCreateForm = () => {
     setForm({
       ...emptyForm,
@@ -341,7 +344,6 @@ export default function DeviceRequests() {
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSearch(event.target.value)
-    setPage(1)
   }
 
   if (isLoading) {
@@ -383,7 +385,9 @@ export default function DeviceRequests() {
             <p className="font-display font-bold text-2xl" style={{ color: SUMMARY_COLORS[status] }}>
               {requests.filter((request) => request.approvalStatus === status).length}
             </p>
-            <p className="text-xs text-on-surface-variant mt-1">{status}</p>
+            <p className="text-xs text-on-surface-variant mt-1">
+              {formatDeviceRequestStatus(status)}
+            </p>
           </div>
         ))}
       </div>
@@ -408,11 +412,10 @@ export default function DeviceRequests() {
                 key={status}
                 onClick={() => {
                   setStatusFilter(status)
-                  setPage(1)
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
               >
-                {status}
+                {formatDeviceRequestStatus(status)}
               </button>
             ))}
           </div>
@@ -454,7 +457,7 @@ export default function DeviceRequests() {
                   </td>
                 </tr>
               ) : (
-                paginatedRequests.map((request) => {
+                filteredRequests.map((request) => {
                   const canReview =
                     request.approvalStatus === 'Requested' || request.approvalStatus === 'Pending'
 
@@ -490,7 +493,7 @@ export default function DeviceRequests() {
                         <StatusBadge status={request.priority} />
                       </td>
                       <td onClick={(event) => event.stopPropagation()}>
-                        <StatusBadge status={request.approvalStatus} />
+                        <StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} />
                       </td>
                       <td
                         className="text-xs"
@@ -501,80 +504,100 @@ export default function DeviceRequests() {
                       </td>
                       <td onClick={(event) => event.stopPropagation()}>
                         {canReview ? (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => void handleApprove(request.requestId)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{
-                                color: 'var(--success-text)',
-                                background: 'var(--success-bg)',
-                              }}
-                            >
-                              <CheckCircle size={12} /> Approve
-                            </button>
-                            <button
-                              onClick={() =>
-                                setConfirm({
-                                  requestId: request.requestId,
-                                  requestLabel: request.id,
-                                  action: 'reject',
-                                })
-                              }
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{
-                                color: 'var(--error-text)',
-                                background: 'var(--error-bg)',
-                              }}
-                            >
-                              <XCircle size={12} /> Reject
-                            </button>
-                            <button
-                              onClick={() =>
-                                setConfirm({
-                                  requestId: request.requestId,
-                                  requestLabel: request.id,
-                                  action: 'delete',
-                                })
-                              }
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-                              style={{
-                                color: 'var(--error-text)',
-                                background: 'var(--error-bg)',
-                              }}
-                            >
-                              <Trash2 size={12} /> Delete
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => navigate(`/requests/${request.requestId}`)}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-                              style={{
-                                color: 'var(--primary)',
-                                background: 'var(--primary-lighter)',
-                              }}
-                            >
-                              <Edit2 size={11} /> View
-                            </button>
-                            <button
-                              onClick={() =>
-                                setConfirm({
-                                  requestId: request.requestId,
-                                  requestLabel: request.id,
-                                  action: 'delete',
-                                })
-                              }
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-                              style={{
-                                color: 'var(--error-text)',
-                                background: 'var(--error-bg)',
-                              }}
-                            >
-                              <Trash2 size={11} /> Delete
-                            </button>
-                          </div>
-                        )}
+  <div className="flex items-center gap-1.5">
+    {!isRestrictedUserFlag && (
+      <>
+        <button
+          onClick={() => void handleApprove(request.requestId)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+          style={{
+            color: 'var(--success-text)',
+            background: 'var(--success-bg)',
+          }}
+        >
+          <CheckCircle size={12} /> Approve
+        </button>
+
+        <button
+          onClick={() =>
+            setConfirm({
+              requestId: request.requestId,
+              requestLabel: request.id,
+              action: 'reject',
+            })
+          }
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+          style={{
+            color: 'var(--error-text)',
+            background: 'var(--error-bg)',
+          }}
+        >
+          <XCircle size={12} /> Reject
+        </button>
+
+        <button
+          onClick={() =>
+            setConfirm({
+              requestId: request.requestId,
+              requestLabel: request.id,
+              action: 'delete',
+            })
+          }
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+          style={{
+            color: 'var(--error-text)',
+            background: 'var(--error-bg)',
+          }}
+        >
+          <Trash2 size={12} /> Delete
+        </button>
+      </>
+    )}
+
+    <button
+      onClick={() => navigate(`/requests/${request.requestId}`)}
+      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+      style={{
+        color: 'var(--primary)',
+        background: 'var(--primary-lighter)',
+      }}
+    >
+      <Edit2 size={11} /> View
+    </button>
+  </div>
+) : (
+  <div className="flex items-center gap-1.5">
+    <button
+      onClick={() => navigate(`/requests/${request.requestId}`)}
+      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+      style={{
+        color: 'var(--primary)',
+        background: 'var(--primary-lighter)',
+      }}
+    >
+      <Edit2 size={11} /> View
+    </button>
+
+    {!isRestrictedUserFlag && (
+      <button
+        onClick={() =>
+          setConfirm({
+            requestId: request.requestId,
+            requestLabel: request.id,
+            action: 'delete',
+          })
+        }
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+        style={{
+          color: 'var(--error-text)',
+          background: 'var(--error-bg)',
+        }}
+      >
+        <Trash2 size={11} /> Delete
+      </button>
+    )}
+  </div>
+)}
                       </td>
                     </tr>
                   )
@@ -583,34 +606,8 @@ export default function DeviceRequests() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between pt-4 mt-2 border-t border-outline-variant/15 px-1">
-          <p className="text-xs text-on-surface-variant">
-            Showing {Math.min((page - 1) * PAGE_SIZE + 1, filteredRequests.length)}-
-            {Math.min(page * PAGE_SIZE, filteredRequests.length)} of {filteredRequests.length}
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((currentPage) => currentPage - 1)}
-              className="w-7 h-7 rounded-lg btn-ghost disabled:opacity-30"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="text-xs text-on-surface px-2">
-              {page} / {totalPages}
-            </span>
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage((currentPage) => currentPage + 1)}
-              className="w-7 h-7 rounded-lg btn-ghost disabled:opacity-30"
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
         </div>
-      </div>
-
-      {!isAdminUser ? (
+      {!isRestrictedUserFlag ? (
         <Modal
           isOpen={showModal && canCreateDeviceRequest}
           onClose={() => setShowModal(false)}
