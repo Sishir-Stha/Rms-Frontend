@@ -21,7 +21,7 @@ export interface GetDepartmentsResponse {
 
 
 
-const API_BASE_URL = 'http://l192.168.5.59:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
 
 export const getDepartments = async (filters: GetDepartmentsRequest): Promise<GetDepartmentsResponse> => {
   const response = await fetch(`${API_BASE_URL}/departments/get`, {

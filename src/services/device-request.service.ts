@@ -12,7 +12,7 @@ import type {
   UpdateDeviceRequestPayload,
 } from '../types/device-request.types'
 
-const API_BASE_URL = 'http://l192.168.5.59:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
 const LOAD_DEVICE_REQUESTS_ERROR_MESSAGE = 'Unable to load device requests right now.'
 const LOAD_DEVICE_REQUEST_DETAIL_ERROR_MESSAGE =
   'Unable to load device request detail right now.'

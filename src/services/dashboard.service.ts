@@ -1,6 +1,6 @@
 import type { DashboardMetrics } from '../types/dashboard.types'
 
-const API_BASE_URL = 'http://l192.168.5.59:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
 
 interface DashboardMetricsEnvelope {
   data: unknown
