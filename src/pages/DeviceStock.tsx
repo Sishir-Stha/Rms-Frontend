@@ -9,15 +9,18 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
+
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../context/ToastContext'
 
+
 import {
   DEVICE_CATEGORIES,
   DEPARTMENTS,
 } from '../data/dummyData'
+
 
 import {
   getDeviceStocks,
@@ -28,13 +31,16 @@ import {
 } from '../api/device-stock'
 import { getDepartments, type Department } from '../api/department'
 
+
 // Get current user ID (you may need to get this from context)
 const CURRENT_USER_ID = 1
+
 
 import type {
   DeviceStockRecord,
   DeviceStockStatus,
 } from '../types/app'
+
 
 interface DeviceStockFormData {
   deviceCategory: string
@@ -46,14 +52,18 @@ interface DeviceStockFormData {
   status: DeviceStockStatus
 }
 
+
 interface ConfirmState {
   stockId: string
   action: 'delete'
 }
 
-type StatusFilter = 'All' | DeviceStockStatus
+
+type StatusFilter = 'All' | 'IN' | 'OUT'
+
 
 const PAGE_SIZE = 8
+
 
 const STATUSES: StatusFilter[] = [
   'All',
@@ -61,16 +71,19 @@ const STATUSES: StatusFilter[] = [
   'OUT',
 ]
 
+
 const SUMMARY_STATUSES: DeviceStockStatus[] = [
   'IN',
   'OUT',
 ]
+
 
 const ORIGIN_SECTORS = [
   'Procurement',
   'Vendor Return',
   'Refurbished',
 ]
+
 
 const emptyForm: DeviceStockFormData = {
   deviceCategory: '',
@@ -82,80 +95,109 @@ const emptyForm: DeviceStockFormData = {
   status: 'IN',
 }
 
+
 const SUMMARY_COLORS: Record<
   DeviceStockStatus,
   string
 > = {
-  IN: '#adc6ff',
-  OUT: '#62df7d',
+  IN: '#ff0000',
+  OUT: '#33cc33',
 }
+
+
+const STATUS_LABELS: Record<DeviceStockStatus, string> = {
+  IN: 'IN (Destination not Reached)',
+  OUT: 'OUT (Destination Reached)',
+}
+
+
+const STATUS_COLORS: Record<DeviceStockStatus, string> = {
+  IN: '#ff0000',
+  OUT: '#33cc33',
+}
+
 
 export default function DeviceStock() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
+
   const [stocks, setStocks] =
     useState<DeviceStockRecord[]>([])
 
+
   const [departments, setDepartments] =
     useState<Department[]>([])
+
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>('All')
 
+
   const [page, setPage] = useState(1)
+
 
   const [showModal, setShowModal] =
     useState(false)
 
+
   const [form, setForm] =
     useState<DeviceStockFormData>(emptyForm)
+
 
   const [confirm, setConfirm] =
     useState<ConfirmState | null>(null)
 
+
   const [isLoading, setIsLoading] =
     useState(true)
 
+
   const [isSubmitting, setIsSubmitting] =
     useState(false)
+
+
+  // ─── helper to map raw API stock → DeviceStockRecord ───────────────────────
+  const mapStock = (stock: any): DeviceStockRecord => ({
+    id: String(stock.stock_id),
+    deviceCategory: stock.category_name || '',
+    // FIX: map device_code so it shows in the table
+    deviceCode: stock.device_code || '',
+    date: stock.date ? stock.date.split('T')[0] : '',
+    originSector: stock.origin_sector || '',
+    originDepartment: stock.origin_department_name || '',
+    // FIX: map destination_sector as destinationSector for the table column
+    destinationSector: stock.destination_sector || '',
+    destination: stock.destination_department_name || null,
+    destinationRequest: stock.destination_sector || null,
+    // FIX: map issue and quantity so they show in the table
+    issue: stock.issue || '',
+    quantity: Number(stock.device_quantity) || 1,
+    status: stock.status,
+  })
+
 
   useEffect(() => {
     const loadStocks = async () => {
       setIsLoading(true)
 
+
       try {
         const response = await getDeviceStocks()
 
+
         if (response.success && response.data) {
-          const formattedStocks: DeviceStockRecord[] =
-            response.data.result.map((stock) => ({
-              id: String(stock.stock_id),
-              deviceCategory: stock.category_name || '',
-              date: stock.date || '',
-              originSector: stock.origin_sector || '',
-              originDepartment:
-                stock.origin_department_name || '',
-              destination:
-                stock.destination_department_name ||
-                null,
-              destinationRequest:
-                stock.destination_sector || null,
-              status: stock.status,
-            }))
-          setStocks(formattedStocks)
+          setStocks(response.data.result.map(mapStock))
         }
       } catch (error) {
         console.error('Failed to load stocks:', error)
-        showToast(
-          'Failed to load device stocks',
-          'error',
-        )
+        showToast('Failed to load device stocks', 'error')
       } finally {
         setIsLoading(false)
       }
     }
+
 
     const fetchDepartments = async () => {
       try {
@@ -168,79 +210,89 @@ export default function DeviceStock() {
         }
       } catch (error) {
         console.error('Failed to load departments:', error)
-        showToast(
-          'Failed to load departments',
-          'error',
-        )
+        showToast('Failed to load departments', 'error')
       }
     }
+
 
     void loadStocks()
     void fetchDepartments()
   }, [])
 
+
   const filteredStocks = useMemo(() => {
     const query = search.trim().toLowerCase()
+
 
     return stocks.filter((stock) => {
       const matchesStatus =
         statusFilter === 'All' ||
-        stock.status === statusFilter
+        (statusFilter === 'IN' && stock.status === 'IN') ||
+        (statusFilter === 'OUT' && stock.status === 'OUT')
+
+
+      const safe = (v: any) => (v ?? '').toString().toLowerCase()
 
       const matchesSearch =
-        query === '' ||
-        stock.id.toLowerCase().includes(query) ||
-        stock.deviceCategory
-          .toLowerCase()
-          .includes(query) ||
-        stock.originSector
-          .toLowerCase()
-          .includes(query) ||
-        stock.originDepartment
-          .toLowerCase()
-          .includes(query)
+      query === '' ||
+      safe(stock.id).includes(query) ||
+      safe(stock.deviceCategory).includes(query) ||
+      safe(stock.deviceCode).includes(query) ||
+      safe(stock.issue).includes(query) ||
+      safe(stock.date).includes(query) ||
+      safe(stock.quantity).includes(query) ||
+      safe(stock.originSector).includes(query) ||
+      safe(stock.originDepartment).includes(query) ||
+      safe(stock.destination).includes(query) ||
+      safe(stock.destinationSector).includes(query) ||
+      safe(stock.destinationRequest).includes(query) ||
+      safe(stock.status).includes(query)
+
 
       return matchesStatus && matchesSearch
     })
   }, [stocks, search, statusFilter])
+
 
   const totalPages = Math.max(
     1,
     Math.ceil(filteredStocks.length / PAGE_SIZE),
   )
 
+
   const paginatedStocks = filteredStocks.slice(
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
   )
 
+
   const resetCreateForm = () => {
     setForm(emptyForm)
   }
+
 
   const openCreateModal = () => {
     resetCreateForm()
     setShowModal(true)
   }
 
+
   const handleCreate = async () => {
-      if (
+    if (
       !form.deviceCategory ||
       !form.date ||
       !form.originSector ||
       !form.originDepartment
     ) {
-      showToast(
-        'Please fill all required fields',
-        'error',
-      )
+      showToast('Please fill all required fields', 'error')
       return
     }
 
+
     setIsSubmitting(true)
 
+
     try {
-      // Find the selected device category ID
       const selectedCategory =
         DEVICE_CATEGORIES.find(
           (cat) => cat.name === form.deviceCategory,
@@ -254,115 +306,79 @@ export default function DeviceStock() {
           (dept) => dept.department_name === form.destinationDepartment,
         )
 
+
       const payload: CreateDeviceStockRequest = {
         device_category_id: selectedCategory?.id || 0,
         device_code: null,
-        date: form.date,
+        date: form.date.split('T')[0],
         origin_sector: form.originSector,
-        origin_department: selectedDepartment?.id || 0,
-        destination_sector:
-          form.destinationSector || null,
-        destination_department:
-          selectedDestDepartment?.id || null,
+        origin_department: selectedDepartment?.department_id || 0,
+        destination_sector: form.destinationSector || null,
+        destination_department: selectedDestDepartment?.department_id || null,
         device_quantity: 1,
         status: form.status,
         created_by: CURRENT_USER_ID,
         issue: null,
       }
 
-      const response =
-        await createDeviceStock(payload)
+
+      const response = await createDeviceStock(payload)
+
 
       if (response.success) {
-        showToast(
-          'Device stock created successfully',
-          'success',
-        )
+        showToast('Device stock created successfully', 'success')
+
 
         setShowModal(false)
         resetCreateForm()
 
-        // Reload stocks
-        const reloadResponse =
-          await getDeviceStocks()
 
-        if (
-          reloadResponse.success &&
-          reloadResponse.data
-        ) {
-          const formattedStocks: DeviceStockRecord[] =
-            reloadResponse.data.result.map(
-              (stock) => ({
-                id: String(stock.stock_id),
-                deviceCategory:
-                  stock.category_name || '',
-                date: stock.date || '',
-                originSector:
-                  stock.origin_sector || '',
-                originDepartment:
-                  stock.origin_department_name || '',
-                destination:
-                  stock
-                    .destination_department_name ||
-                  null,
-                destinationRequest:
-                  stock.destination_sector || null,
-                status: stock.status,
-              }),
-            )
-          setStocks(formattedStocks)
+        // Reload stocks
+        const reloadResponse = await getDeviceStocks()
+
+
+        if (reloadResponse.success && reloadResponse.data) {
+          setStocks(reloadResponse.data.result.map(mapStock))
         }
       }
     } catch (error) {
-      console.error(
-        'Failed to create device stock:',
-        error,
-      )
-      showToast(
-        'Failed to create device stock',
-        'error',
-      )
+      console.error('Failed to create device stock:', error)
+      showToast('Failed to create device stock', 'error')
     } finally {
       setIsSubmitting(false)
     }
   }
 
+
   const handleDelete = async (stockId: string) => {
     try {
-      const deletePayload: DeleteDeviceStockRequest =
-        {
-          updated_by: CURRENT_USER_ID,
-        }
+      const deletePayload: DeleteDeviceStockRequest = {
+        updated_by: CURRENT_USER_ID,
+      }
 
-      const response =
-        await deleteDeviceStock(
-          Number(stockId),
-          deletePayload,
-        )
+
+      const response = await deleteDeviceStock(
+        Number(stockId),
+        deletePayload,
+      )
+
 
       if (response.success) {
         setStocks((prev) =>
           prev.filter((item) => item.id !== stockId),
         )
 
-        showToast(
-          'Device stock deleted successfully',
-          'success',
-        )
+
+        showToast('Device stock deleted successfully', 'success')
       }
     } catch (error) {
-      console.error(
-        'Failed to delete device stock:',
-        error,
-      )
-      showToast(
-        'Failed to delete device stock',
-        'error',
-      )
+      console.error('Failed to delete device stock:', error)
+      showToast('Failed to delete device stock', 'error')
     } finally {
       setConfirm(null)
     }
   }
+
 
   const handleSearchChange = (
     event: ChangeEvent<HTMLInputElement>,
@@ -371,11 +387,13 @@ export default function DeviceStock() {
     setPage(1)
   }
 
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+
 
           <p className="text-sm text-on-surface-variant">
             Loading device stock...
@@ -385,6 +403,7 @@ export default function DeviceStock() {
     )
   }
 
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -393,10 +412,12 @@ export default function DeviceStock() {
             Device Stock
           </h2>
 
+
           <p className="text-sm text-on-surface-variant">
             Manage stock transfers and inventory
           </p>
         </div>
+
 
         <button
           onClick={openCreateModal}
@@ -407,6 +428,7 @@ export default function DeviceStock() {
         </button>
       </div>
 
+
       <div className="grid grid-cols-2 gap-3">
         {SUMMARY_STATUSES.map((status) => (
           <div
@@ -415,40 +437,37 @@ export default function DeviceStock() {
           >
             <p
               className="font-display font-bold text-2xl"
-              style={{
-                color: SUMMARY_COLORS[status],
-              }}
+              style={{ color: SUMMARY_COLORS[status] }}
             >
-              {
-                stocks.filter(
-                  (stock) =>
-                    stock.status === status,
-                ).length
-              }
+              {stocks.filter((stock) => stock.status === status).length}
             </p>
 
+
             <p className="text-xs text-on-surface-variant mt-1">
-              {status}
+              {STATUS_LABELS[status]}
             </p>
           </div>
         ))}
       </div>
 
+
       <div className="section-card">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-start">
           <div className="relative flex-1 max-w-sm">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
             />
 
+
             <input
               value={search}
               onChange={handleSearchChange}
-              placeholder="Search stock..."
+              placeholder="Search device category,device code..."
               className="input-field pl-9"
             />
           </div>
+
 
           <div className="flex items-center gap-2">
             {STATUSES.map((status) => (
@@ -471,6 +490,7 @@ export default function DeviceStock() {
         </div>
       </div>
 
+
       <div className="section-card overflow-hidden">
         <div className="table-container">
           <table className="data-table">
@@ -491,15 +511,14 @@ export default function DeviceStock() {
               </tr>
             </thead>
 
+
             <tbody>
               {paginatedStocks.map((stock) => (
                 <tr
                   key={stock.id}
                   className="cursor-pointer"
                   onDoubleClick={() =>
-                    navigate(
-                      `/device-stock/${stock.id}`,
-                    )
+                    navigate(`/device-stock/${stock.id}`)
                   }
                 >
                   <td>
@@ -508,47 +527,67 @@ export default function DeviceStock() {
                     </code>
                   </td>
 
-                  <td>{stock.deviceCategory}</td>
 
-                  <td>—</td>
+                  <td>{stock.deviceCategory || '—'}</td>
 
-                  <td>{stock.originSector}</td>
+
+                  {/* FIX: was hardcoded '—', now reads real deviceCode */}
+                  <td>{stock.deviceCode || '—'}</td>
+
+
+                  <td>{stock.originSector || '—'}</td>
+
+
+                  <td>{stock.originDepartment || '—'}</td>
+
+
+                  {/* FIX: was hardcoded '—', now reads real destinationSector */}
+                  <td>{stock.destinationSector || '—'}</td>
+
+
+                  <td>{stock.destination || '—'}</td>
+
+
+                  {/* FIX: was hardcoded '—', now reads real issue */}
+                  <td>{stock.issue || '—'}</td>
+
+
+                  <td>{stock.date || '—'}</td>
+
+
+                  {/* FIX: was hardcoded '1', now reads real quantity */}
+                  <td className="text-center">{stock.quantity ?? 1}</td>
+
 
                   <td>
-                    {stock.originDepartment}
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        backgroundColor: STATUS_COLORS[stock.status] + '20',
+                        color: STATUS_COLORS[stock.status],
+                      }}
+                    >
+                      {stock.status}
+                    </div>
                   </td>
 
-                  <td>—</td>
-
-                  <td>
-                    {stock.destination || '—'}
-                  </td>
-
-                  <td>—</td>
-
-                  <td>{stock.date}</td>
-
-                  <td className="text-center">1</td>
-
-                  <td>
-                    <StatusBadge
-                      status={stock.status}
-                    />
-                  </td>
 
                   <td>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() =>
-                          navigate(
-                            `/device-stock/${stock.id}`,
-                          )
+                          navigate(`/device-stock/${stock.id}`)
                         }
                         className="btn-secondary px-2 py-1"
                         title="Edit"
                       >
                         <Edit2 size={12} />
                       </button>
+
 
                       <button
                         onClick={() =>
@@ -559,10 +598,8 @@ export default function DeviceStock() {
                         }
                         className="btn-secondary px-2 py-1"
                         style={{
-                          color:
-                            'var(--error-text)',
-                          background:
-                            'var(--error-bg)',
+                          color: 'var(--error-text)',
+                          background: 'var(--error-bg)',
                         }}
                         title="Delete"
                       >
@@ -576,27 +613,26 @@ export default function DeviceStock() {
           </table>
         </div>
 
+
         <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10 mt-3">
           <p className="text-xs text-on-surface-variant">
             Page {page} of {totalPages}
           </p>
 
+
           <div className="flex items-center gap-2">
             <button
               disabled={page === 1}
-              onClick={() =>
-                setPage((prev) => prev - 1)
-              }
+              onClick={() => setPage((prev) => prev - 1)}
               className="icon-button"
             >
               <ChevronLeft size={14} />
             </button>
 
+
             <button
               disabled={page === totalPages}
-              onClick={() =>
-                setPage((prev) => prev + 1)
-              }
+              onClick={() => setPage((prev) => prev + 1)}
               className="icon-button"
             >
               <ChevronRight size={14} />
@@ -604,6 +640,7 @@ export default function DeviceStock() {
           </div>
         </div>
       </div>
+
 
       <Modal
         isOpen={showModal}
@@ -617,86 +654,69 @@ export default function DeviceStock() {
               Device Stock Details
             </h3>
 
+
             <p className="text-sm text-on-surface-variant mt-1">
               Create a new stock entry
             </p>
           </div>
 
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <select
               value={form.deviceCategory}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  deviceCategory: e.target.value,
-                })
+                setForm({ ...form, deviceCategory: e.target.value })
               }
               className="input-field"
             >
-              <option value="">
-                Device Category
-              </option>
+              <option value="">Device Category</option>
+
 
               {DEVICE_CATEGORIES.map((category) => (
-                <option
-                  key={category.id}
-                  value={category.name}
-                >
+                <option key={category.id} value={category.name}>
                   {category.name}
                 </option>
               ))}
             </select>
 
+
             <input
               type="date"
               value={form.date}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  date: e.target.value,
-                })
+                setForm({ ...form, date: e.target.value })
               }
               className="input-field"
             />
 
+
             <select
               value={form.originSector}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  originSector: e.target.value,
-                })
+                setForm({ ...form, originSector: e.target.value })
               }
               className="input-field"
             >
-              <option value="">
-                Origin Sector
-              </option>
+              <option value="">Origin Sector</option>
+
 
               {ORIGIN_SECTORS.map((sector) => (
-                <option
-                  key={sector}
-                  value={sector}
-                >
+                <option key={sector} value={sector}>
                   {sector}
                 </option>
               ))}
             </select>
 
+
             <select
               value={form.originDepartment}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  originDepartment:
-                    e.target.value,
-                })
+                setForm({ ...form, originDepartment: e.target.value })
               }
               className="input-field"
             >
-              <option value="">
-                Origin Department
-              </option>
+              <option value="">Origin Department</option>
+
 
               {departments.map((dept) => (
                 <option
@@ -708,44 +728,34 @@ export default function DeviceStock() {
               ))}
             </select>
 
+
             <select
               value={form.destinationSector}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  destinationSector: e.target.value,
-                })
+                setForm({ ...form, destinationSector: e.target.value })
               }
               className="input-field"
             >
-              <option value="">
-                Destination Sector
-              </option>
+              <option value="">Destination Sector</option>
+
 
               {ORIGIN_SECTORS.map((sector) => (
-                <option
-                  key={sector}
-                  value={sector}
-                >
+                <option key={sector} value={sector}>
                   {sector}
                 </option>
               ))}
             </select>
 
+
             <select
               value={form.destinationDepartment}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  destinationDepartment:
-                    e.target.value,
-                })
+                setForm({ ...form, destinationDepartment: e.target.value })
               }
               className="input-field"
             >
-              <option value="">
-                Destination Department
-              </option>
+              <option value="">Destination Department</option>
+
 
               {departments.map((dept) => (
                 <option
@@ -757,45 +767,43 @@ export default function DeviceStock() {
               ))}
             </select>
           </div>
+
 
           <select
             value={form.status}
             onChange={(e) =>
               setForm({
                 ...form,
-                status:
-                  e.target
-                    .value as DeviceStockStatus,
+                status: e.target.value as DeviceStockStatus,
               })
             }
             className="input-field"
           >
-            <option value="IN">IN</option>
-            <option value="OUT">OUT</option>
+            <option value="IN">IN (Destination not Reached)</option>
+            <option value="OUT">OUT (Destination Reached)</option>
           </select>
+
 
           <div className="flex justify-end gap-2 pt-3">
             <button
-              onClick={() =>
-                setShowModal(false)
-              }
+              onClick={() => setShowModal(false)}
               className="btn-secondary px-4 py-2"
             >
               Cancel
             </button>
+
 
             <button
               onClick={handleCreate}
               disabled={isSubmitting}
               className="btn-primary px-4 py-2"
             >
-              {isSubmitting
-                ? 'Creating...'
-                : 'Create Entry'}
+              {isSubmitting ? 'Creating...' : 'Create Entry'}
             </button>
           </div>
         </div>
       </Modal>
+
 
       <ConfirmDialog
         isOpen={confirm !== null}

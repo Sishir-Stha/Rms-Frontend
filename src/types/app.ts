@@ -40,17 +40,22 @@ export interface DeviceCategoryRecord {
   icon: string
   count: number
 }
+
 export interface DeviceStockRecord {
   id: string
   deviceCategory: string
+  deviceCode?: string
   issue?: string
   date: string
+  quantity?: number
   originSector: string
   originDepartment: string
   destination: string | null
+  destinationSector?: string
   destinationRequest: string | null
   status: DeviceStockStatus
 }
+
 export interface RepairRecord {
   id: string
   device: string
