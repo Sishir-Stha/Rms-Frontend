@@ -13,7 +13,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { isAdminAllowedNavPath, isAdminDepartment } from '../utils/access-control'
+import {
+  isRestrictedUser,
+  canAccessPathForUser,
+} from '../utils/access-control'
 
 interface SidebarProps {
   isOpen: boolean
@@ -37,12 +40,16 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Settings, label: 'Settings', to: '/settings' },
 ]
 
-export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+export default function Sidebar({
+  isOpen,
+  setIsOpen,
+}: SidebarProps) {
   const { currentUser } = useAuth()
   const location = useLocation()
-  const visibleNavItems = isAdminDepartment(currentUser?.department)
-    ? NAV_ITEMS.filter((item) => isAdminAllowedNavPath(item.to))
-    : NAV_ITEMS
+
+  const visibleNavItems = NAV_ITEMS.filter((item) =>
+  canAccessPathForUser(currentUser?.email, item.to)
+)
 
   return (
     <aside
@@ -56,7 +63,10 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     >
       <div
         className="flex items-center gap-3 px-4 py-4"
-        style={{ borderBottom: '1px solid var(--header-border)', height: '56px' }}
+        style={{
+          borderBottom: '1px solid var(--header-border)',
+          height: '56px',
+        }}
       >
         <div
           className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center"
@@ -64,6 +74,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         >
           <Wrench size={14} color="white" strokeWidth={2.5} />
         </div>
+
         {isOpen && (
           <div className="overflow-hidden">
             <span
@@ -90,34 +101,50 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
         {visibleNavItems.map(({ icon: Icon, label, to }) => {
           const isActive =
-            to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
+            to === '/'
+              ? location.pathname === '/'
+              : location.pathname.startsWith(to)
 
           return (
             <NavLink
               key={to}
               to={to}
-              className={`nav-item ${isActive ? 'active' : ''} ${!isOpen ? 'justify-center px-2' : ''}`}
+              className={`nav-item ${
+                isActive ? 'active' : ''
+              } ${!isOpen ? 'justify-center px-2' : ''}`}
               title={!isOpen ? label : undefined}
             >
               <Icon size={17} className="flex-shrink-0" />
-              {isOpen && <span className="whitespace-nowrap overflow-hidden">{label}</span>}
+
+              {isOpen && (
+                <span className="whitespace-nowrap overflow-hidden">
+                  {label}
+                </span>
+              )}
             </NavLink>
           )
         })}
       </nav>
 
       {isOpen ? (
-        <div className="p-3" style={{ borderTop: '1px solid var(--header-border)' }}>
+        <div
+          className="p-3"
+          style={{ borderTop: '1px solid var(--header-border)' }}
+        >
           <div
             className="flex items-center gap-3 px-2 py-2 rounded-lg"
             style={{ background: 'var(--sidebar-user-bg)' }}
           >
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-              style={{ background: 'var(--primary)', color: 'var(--on-primary)' }}
+              style={{
+                background: 'var(--primary)',
+                color: 'var(--on-primary)',
+              }}
             >
               {currentUser?.avatar ?? 'AU'}
             </div>
+
             <div className="overflow-hidden">
               <p
                 className="text-xs font-semibold truncate"
@@ -125,7 +152,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
               >
                 {currentUser?.name}
               </p>
-              <p className="text-xs truncate" style={{ color: 'var(--primary)' }}>
+
+              <p
+                className="text-xs truncate"
+                style={{ color: 'var(--primary)' }}
+              >
                 {currentUser?.department ?? 'IT'}
               </p>
             </div>
@@ -138,7 +169,10 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{ background: 'var(--primary)', color: 'var(--on-primary)' }}
+            style={{
+              background: 'var(--primary)',
+              color: 'var(--on-primary)',
+            }}
           >
             {currentUser?.avatar ?? 'AU'}
           </div>

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { canAccessPathForDepartment } from '../utils/access-control'
+import { canAccessPathForUser } from '../utils/access-control'
 
 interface ProtectedRouteProps {
   children: ReactNode
@@ -19,12 +19,18 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     )
   }
 
-  if (
-    isAuthenticated &&
-    !canAccessPathForDepartment(currentUser?.department, location.pathname)
-  ) {
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  const hasAccess = canAccessPathForUser(
+    currentUser?.email,
+    location.pathname
+  )
+
+  if (!hasAccess) {
     return <Navigate to="/" replace />
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+  return <>{children}</>
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+
 import {
   ArrowLeft,
   Building2,
@@ -14,15 +15,19 @@ import {
   FileText,
 } from 'lucide-react'
 
+
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/StatusBadge'
 
+
 import { useToast } from '../context/ToastContext'
+
 
 import {
   DEVICE_CATEGORIES,
   DEPARTMENTS,
 } from '../data/dummyData'
+
 
 import {
   getSingleDeviceStock,
@@ -32,18 +37,24 @@ import {
   type DeleteDeviceStockRequest,
 } from '../api/device-stock'
 
+
 // Get current user ID (you may need to get this from context)
 const CURRENT_USER_ID = 1
 
+
 import type {
+  DeviceStockRecord,
   DeviceStockStatus,
 } from '../types/app'
+
 
 interface DeviceStockFormData {
   id: string
   deviceCategory: string
+  deviceCode: string
   issue: string
   date: string
+  quantity: number
   originSector: string
   originDepartment: string
   destination: string
@@ -51,11 +62,13 @@ interface DeviceStockFormData {
   status: DeviceStockStatus
 }
 
+
 interface InfoCardRowProps {
   icon: React.ElementType
   label: string
   value: string
 }
+
 
 interface TimelineItemProps {
   title: string
@@ -63,11 +76,25 @@ interface TimelineItemProps {
   last?: boolean
 }
 
+
 const ORIGIN_SECTORS = [
   'Procurement',
   'Vendor Return',
   'Refurbished',
 ]
+
+
+const STATUS_LABELS: Record<DeviceStockStatus, string> = {
+  IN: 'IN (Destination not Reached)',
+  OUT: 'OUT (Destination Reached)',
+}
+
+
+const STATUS_COLORS: Record<DeviceStockStatus, string> = {
+  IN: '#ff0000',
+  OUT: '#33cc33',
+}
+
 
 function InfoCardRow({
   icon: Icon,
@@ -95,6 +122,7 @@ function InfoCardRow({
         />
       </div>
 
+
       <div className="min-w-0">
         <p
           className="text-[11px] font-semibold uppercase tracking-wider"
@@ -103,6 +131,7 @@ function InfoCardRow({
           {label}
         </p>
 
+
         <p className="text-sm font-medium mt-1 text-on-surface break-words">
           {value || '-'}
         </p>
@@ -110,6 +139,7 @@ function InfoCardRow({
     </div>
   )
 }
+
 
 function TimelineItem({
   title,
@@ -126,6 +156,7 @@ function TimelineItem({
           }}
         />
 
+
         {!last && (
           <div
             className="w-px flex-1 mt-1"
@@ -138,10 +169,12 @@ function TimelineItem({
         )}
       </div>
 
+
       <div className="pb-5">
         <p className="text-sm font-medium text-on-surface">
           {title}
         </p>
+
 
         <p
           className="text-xs mt-1"
@@ -154,34 +187,45 @@ function TimelineItem({
   )
 }
 
+
 export default function DeviceStockDetail() {
   const params = useParams<{ id: string }>()
   const id = params.id
 
+
   const navigate = useNavigate()
 
+
   const { showToast } = useToast()
+
 
   const [form, setForm] =
     useState<DeviceStockFormData | null>(null)
 
+
   const [originalForm, setOriginalForm] =
     useState<DeviceStockFormData | null>(null)
+
 
   const [isLoading, setIsLoading] =
     useState(true)
 
+
   const [isSubmitting, setIsSubmitting] =
     useState(false)
 
+
   const [showDelete, setShowDelete] =
     useState(false)
+
 
   useEffect(() => {
     const loadStock = async () => {
       if (!id) return
 
+
       setIsLoading(true)
+
 
       try {
         const response =
@@ -189,15 +233,19 @@ export default function DeviceStockDetail() {
             Number(id),
           )
 
+
         if (response.success && response.data) {
           const stock = response.data.result
 
-          const stockData = {
+
+          const stockData: DeviceStockFormData = {
             id: String(stock.stock_id),
             deviceCategory:
               stock.category_name || '',
+            deviceCode: stock.device_code || '',
             issue: stock.issue || '',
-            date: stock.date || '',
+            date: stock.date ? stock.date.split('T')[0] : '',
+            quantity: Number(stock.device_quantity) || 1,
             originSector:
               stock.origin_sector || '',
             originDepartment:
@@ -205,8 +253,7 @@ export default function DeviceStockDetail() {
             destination:
               stock.destination_sector || '',
             destinationRequest:
-              stock
-                .destination_department_name || '',
+              stock.destination_department_name || '',
             status: stock.status,
           }
           setForm(stockData)
@@ -216,6 +263,7 @@ export default function DeviceStockDetail() {
             'Device stock record not found',
             'error',
           )
+
 
           navigate('/device-stock')
         }
@@ -229,20 +277,25 @@ export default function DeviceStockDetail() {
           'error',
         )
 
+
         navigate('/device-stock')
       } finally {
         setIsLoading(false)
       }
     }
 
+
     void loadStock()
   }, [id, navigate, showToast])
 
+
+  // FIX: accept string | number so quantity coercion works through the same handler
   const handleChange = (
     key: keyof DeviceStockFormData,
-    value: string,
+    value: string | number,
   ) => {
     if (!form) return
+
 
     setForm({
       ...form,
@@ -250,8 +303,10 @@ export default function DeviceStockDetail() {
     })
   }
 
+
   const handleSave = async () => {
     if (!form) return
+
 
     if (
       !form.deviceCategory ||
@@ -264,38 +319,51 @@ export default function DeviceStockDetail() {
         'error',
       )
 
+
       return
     }
 
+
     setIsSubmitting(true)
 
+
     try {
-      // Find the selected device category ID
       const selectedCategory =
         DEVICE_CATEGORIES.find(
           (cat) => cat.name === form.deviceCategory,
         )
-      const selectedDepartment =
+
+      const selectedOriginDepartment =
         DEPARTMENTS.find(
           (dept) => dept.name === form.originDepartment,
         )
 
+      // FIX: resolve destination department by name instead of hardcoding null
+      const selectedDestinationDepartment =
+        DEPARTMENTS.find(
+          (dept) => dept.name === form.destinationRequest,
+        )
+
       const payload: UpdateDeviceStockRequest = {
         device_category_id:
-          selectedCategory?.id || null,
-        date: form.date,
+          selectedCategory?.id ?? null,
+        device_code: form.deviceCode || null,
+        date: form.date.split('T')[0],
         origin_sector: form.originSector,
         origin_department:
-          selectedDepartment?.id || null,
+          selectedOriginDepartment?.id ?? null,
         destination_sector:
           form.destination || null,
-        destination_department: null,
-        device_quantity: 1,
+        // FIX: was always null — now correctly resolved
+        destination_department:
+          selectedDestinationDepartment?.id ?? null,
+        // FIX: ensure number type is sent, not string
+        device_quantity: Number(form.quantity) || 1,
         issue: form.issue || null,
         status: form.status,
         updated_by: CURRENT_USER_ID,
-        device_code: null,
       }
+
 
       const response =
         await updateDeviceStock(
@@ -303,11 +371,13 @@ export default function DeviceStockDetail() {
           payload,
         )
 
+
       if (response.success) {
         showToast(
           'Device stock updated successfully',
           'success',
         )
+
 
         setOriginalForm(form)
       }
@@ -325,6 +395,7 @@ export default function DeviceStockDetail() {
     }
   }
 
+
   const handleDelete = async () => {
     try {
       const deletePayload: DeleteDeviceStockRequest =
@@ -332,17 +403,20 @@ export default function DeviceStockDetail() {
           updated_by: CURRENT_USER_ID,
         }
 
+
       const response =
         await deleteDeviceStock(
           Number(id),
           deletePayload,
         )
 
+
       if (response.success) {
         showToast(
           'Device stock deleted successfully',
           'success',
         )
+
 
         navigate('/device-stock')
       }
@@ -360,22 +434,26 @@ export default function DeviceStockDetail() {
     }
   }
 
+
   const hasChanges = useMemo(() => {
     if (!form || !originalForm) return false
     return JSON.stringify(form) !== JSON.stringify(originalForm)
   }, [form, originalForm])
 
+
   const sameDepartmentStocks =
-    useMemo(() => {
+    useMemo<DeviceStockRecord[]>(() => {
       if (!form) return []
       return []
     }, [form])
+
 
   if (isLoading || !form) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+
 
           <p className="text-sm text-on-surface-variant">
             Loading device stock...
@@ -384,6 +462,7 @@ export default function DeviceStockDetail() {
       </div>
     )
   }
+
 
   return (
     <div className="p-6 space-y-6">
@@ -398,12 +477,14 @@ export default function DeviceStockDetail() {
             <ArrowLeft size={18} />
           </button>
 
+
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-display font-bold text-2xl text-on-surface">
               {form.id}
             </h1>
           </div>
         </div>
+
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -422,6 +503,7 @@ export default function DeviceStockDetail() {
             Delete
           </button>
 
+
           <button
             onClick={() =>
               void handleSave()
@@ -435,12 +517,14 @@ export default function DeviceStockDetail() {
           >
             <Save size={15} />
 
+
             {isSubmitting
               ? 'Saving...'
               : 'Save Changes'}
           </button>
         </div>
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <div className="lg:col-span-8 space-y-5">
@@ -451,16 +535,19 @@ export default function DeviceStockDetail() {
                 className="text-primary"
               />
 
+
               <h3 className="font-semibold text-sm text-on-surface">
                 Device Stock Details
               </h3>
             </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Device Category
                 </label>
+
 
                 <select
                   value={
@@ -489,10 +576,33 @@ export default function DeviceStockDetail() {
                 </select>
               </div>
 
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
+                  Device Code
+                </label>
+
+
+                <input
+                  type="text"
+                  value={form.deviceCode}
+                  onChange={(e) =>
+                    handleChange(
+                      'deviceCode',
+                      e.target.value,
+                    )
+                  }
+                  className="input-field"
+                  placeholder="Enter device code"
+                />
+              </div>
+
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Origin Sector
                 </label>
+
 
                 <select
                   value={form.originSector}
@@ -517,10 +627,12 @@ export default function DeviceStockDetail() {
                 </select>
               </div>
 
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Origin Department
                 </label>
+
 
                 <select
                   value={
@@ -549,10 +661,12 @@ export default function DeviceStockDetail() {
                 </select>
               </div>
 
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Date
                 </label>
+
 
                 <input
                   type="date"
@@ -567,10 +681,35 @@ export default function DeviceStockDetail() {
                 />
               </div>
 
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
+                  Quantity
+                </label>
+
+
+                <input
+                  type="number"
+                  value={form.quantity}
+                  onChange={(e) =>
+                    // FIX: use handleChange with Number coercion instead of inline setForm
+                    handleChange(
+                      'quantity',
+                      Number(e.target.value),
+                    )
+                  }
+                  className="input-field"
+                  placeholder="Enter quantity"
+                  min="1"
+                />
+              </div>
+
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Issue / Remarks
                 </label>
+
 
                 <textarea
                   value={form.issue}
@@ -585,10 +724,12 @@ export default function DeviceStockDetail() {
                 />
               </div>
 
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Destination
                 </label>
+
 
                 <input
                   type="text"
@@ -606,10 +747,12 @@ export default function DeviceStockDetail() {
                 />
               </div>
 
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Destination Request
                 </label>
+
 
                 <input
                   type="text"
@@ -627,10 +770,12 @@ export default function DeviceStockDetail() {
                 />
               </div>
 
+
               <div className="md:col-span-2">
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">
                   Status
                 </label>
+
 
                 <select
                   value={form.status}
@@ -643,17 +788,19 @@ export default function DeviceStockDetail() {
                   className="input-field"
                 >
                   <option value="IN">
-                    IN
+                    IN (Destination not Reached)
                   </option>
 
+
                   <option value="OUT">
-                    OUT
+                    OUT (Destination Reached)
                   </option>
                 </select>
               </div>
             </div>
           </div>
         </div>
+
 
         <div className="lg:col-span-4 space-y-5">
           <div
@@ -667,10 +814,18 @@ export default function DeviceStockDetail() {
               Quick Info
             </h3>
 
+
             <InfoCardRow
               icon={Hash}
               label="Stock ID"
               value={form.id}
+            />
+
+
+            <InfoCardRow
+              icon={Package}
+              label="Device Category"
+              value={form.deviceCategory}
             />
 
             <InfoCardRow
@@ -681,11 +836,13 @@ export default function DeviceStockDetail() {
               }
             />
 
+
             <InfoCardRow
               icon={FileText}
               label="Issue"
               value={form.issue}
             />
+
 
             <InfoCardRow
               icon={Package}
@@ -693,12 +850,6 @@ export default function DeviceStockDetail() {
               value={
                 form.destination
               }
-            />
-
-            <InfoCardRow
-              icon={Calendar}
-              label="Date"
-              value={form.date}
             />
 
             <div className="pt-3">
@@ -712,9 +863,20 @@ export default function DeviceStockDetail() {
                 Current Status
               </p>
 
-              <StatusBadge
-                status={form.status}
-              />
+
+              <div
+                style={{
+                  display: 'inline-flex',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  backgroundColor: STATUS_COLORS[form.status] + '20',
+                  color: STATUS_COLORS[form.status],
+                }}
+              >
+                {STATUS_LABELS[form.status]}
+              </div>
             </div>
           </div>
 
@@ -725,18 +887,21 @@ export default function DeviceStockDetail() {
                 className="text-primary"
               />
 
+
               <h3 className="font-semibold text-sm text-on-surface">
                 History
               </h3>
             </div>
+
 
             <TimelineItem
               title="Stock entry created"
               date={form.date}
             />
 
+
             <TimelineItem
-              title={`Status updated to ${form.status}`}
+              title={`Status updated to ${STATUS_LABELS[form.status]}`}
               date={form.date}
             />
 
@@ -789,6 +954,7 @@ export default function DeviceStockDetail() {
                           {stock.id}
                         </p>
 
+
                         <div className="mt-1">
                           <p className="text-xs text-on-surface-variant">
                             {
@@ -796,12 +962,14 @@ export default function DeviceStockDetail() {
                             }
                           </p>
 
+
                           <p className="text-[11px] text-on-surface-variant mt-0.5 line-clamp-1">
                             {stock.issue ||
                               'No issue'}
                           </p>
                         </div>
                       </div>
+
 
                       <ChevronRight
                         size={16}
@@ -815,6 +983,7 @@ export default function DeviceStockDetail() {
           </div>
         </div>
       </div>
+
 
       <ConfirmDialog
         isOpen={showDelete}
