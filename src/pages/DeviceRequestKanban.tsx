@@ -13,7 +13,8 @@ import {
 import type { RequestApprovalStatus } from '../types/app'
 import type { DeviceRequestListItem } from '../types/device-request.types'
 import { formatDeviceRequestStatus } from '../utils/device-request-status'
-import { canUpdateRequestKanbanStatus } from '../utils/access-control'
+import { canManageKanban, canMoveKanbanStatus } from '../utils/access-control'
+
 
 interface KanbanColumn {
   id: RequestApprovalStatus
@@ -21,10 +22,12 @@ interface KanbanColumn {
   color: string
 }
 
+
 interface ConfirmState {
   requestId: number
   col: Extract<RequestApprovalStatus, 'Rejected'>
 }
+
 
 const COLUMNS: KanbanColumn[] = [
   { id: 'Requested', label: 'Requested', color: '#bac5ee' },
@@ -33,11 +36,20 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'Rejected', label: 'Rejected', color: '#dc2626' },
 ]
 
+
+// Transitions used to guard drop targets in the UI.
+// canMoveKanbanStatus in access-control is the authoritative check;
+// this covers all possible moves across all roles.
+const VALID_TRANSITIONS: Record<RequestApprovalStatus, RequestApprovalStatus[]> = {
+  'Requested': ['Pending', 'Rejected'],
+  'Pending':   ['Requested', 'Rejected', 'Approved'],
+  'Approved':  ['Rejected'],
+  'Rejected':  ['Requested', 'Pending'],
+}
+
+
 export default function DeviceRequestKanban() {
   const { currentUser } = useAuth()
-  const canManageKanban = canUpdateRequestKanbanStatus(
-  currentUser?.email,
-)
   const { showToast } = useToast()
   const navigate = useNavigate()
   const [cards, setCards] = useState<DeviceRequestListItem[]>([])
@@ -46,6 +58,8 @@ export default function DeviceRequestKanban() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [clickTimeout, setClickTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
+
 
   const loadBoard = async (signal?: AbortSignal) => {
     setIsLoading(true)
@@ -73,6 +87,7 @@ export default function DeviceRequestKanban() {
     }
   }
 
+
   useEffect(() => {
     const abortController = new AbortController()
     void loadBoard(abortController.signal)
@@ -82,6 +97,7 @@ export default function DeviceRequestKanban() {
     }
   }, [])
 
+
   useEffect(() => {
     const unsubscribe = subscribeToDeviceRequestsChanged(() => {
       void loadBoard()
@@ -90,18 +106,41 @@ export default function DeviceRequestKanban() {
     return unsubscribe
   }, [])
 
+
   const onDragStart = (requestId: number) => {
-  if (!canManageKanban) return
-  setDragging(requestId)
-}
+    setClickTimeout(null)
+
+    if (!canManageKanban(currentUser?.email)) {
+      showToast('You do not have permission to move requests', 'error')
+      return
+    }
+
+    setDragging(requestId)
+  }
+
 
   const onDragOver = (
     event: DragEvent<HTMLDivElement>,
     colId: RequestApprovalStatus,
   ) => {
     event.preventDefault()
+
+    if (!canManageKanban(currentUser?.email)) {
+      return
+    }
+
+    // Only highlight column if the dragged card can actually land here
+    if (dragging !== null) {
+      const draggedCard = cards.find((c) => c.requestId === dragging)
+      if (draggedCard) {
+        const allowed = VALID_TRANSITIONS[draggedCard.approvalStatus] ?? []
+        if (!allowed.includes(colId)) return
+      }
+    }
+
     setDragOver(colId)
   }
+
 
   const updateCard = (updatedCard: DeviceRequestListItem) => {
     setCards((previousCards) =>
@@ -111,13 +150,24 @@ export default function DeviceRequestKanban() {
     )
   }
 
+
   const moveCard = async (
     requestId: number,
     col: RequestApprovalStatus,
+    fromStatus?: RequestApprovalStatus,
   ) => {
     const targetCard = cards.find((card) => card.requestId === requestId)
 
-    if (!targetCard) {
+    if (!targetCard) return
+
+    const currentStatus = fromStatus || targetCard.approvalStatus
+
+    // Authoritative permission check
+    if (!canMoveKanbanStatus(currentUser?.email, currentStatus, col)) {
+      showToast(
+        `You are not allowed to move from ${formatDeviceRequestStatus(currentStatus)} to ${formatDeviceRequestStatus(col)}`,
+        'error',
+      )
       return
     }
 
@@ -186,36 +236,49 @@ export default function DeviceRequestKanban() {
     }
   }
 
+
   const onDrop = async (
-  event: DragEvent<HTMLDivElement>,
-  colId: RequestApprovalStatus,
-) => {
-  if (!canManageKanban) return
+    event: DragEvent<HTMLDivElement>,
+    colId: RequestApprovalStatus,
+  ) => {
     event.preventDefault()
 
     if (dragging === null) {
       return
     }
 
+    if (!canManageKanban(currentUser?.email)) {
+      showToast('You do not have permission to move requests', 'error')
+      setDragging(null)
+      setDragOver(null)
+      return
+    }
+
     if (colId === 'Rejected') {
       setConfirm({ requestId: dragging, col: colId })
     } else {
-      await moveCard(dragging, colId)
+      const targetCard = cards.find((card) => card.requestId === dragging)
+      if (targetCard) {
+        await moveCard(dragging, colId, targetCard.approvalStatus)
+      }
     }
 
     setDragging(null)
     setDragOver(null)
   }
 
+
   const handleCardMouseEnter = (event: MouseEvent<HTMLDivElement>) => {
     event.currentTarget.style.transform = 'scale(1.01)'
     event.currentTarget.style.boxShadow = '0 4px 16px var(--shadow)'
   }
 
+
   const handleCardMouseLeave = (event: MouseEvent<HTMLDivElement>) => {
     event.currentTarget.style.transform = ''
     event.currentTarget.style.boxShadow = 'none'
   }
+
 
   if (isLoading) {
     return (
@@ -228,20 +291,16 @@ export default function DeviceRequestKanban() {
     )
   }
 
+
   return (
     <div className="p-6">
       <div className="mb-5">
         <h2 className="font-display font-bold text-xl" style={{ color: 'var(--on-surface)' }}>
           Device Request Kanban
         </h2>
-        <p
-  className="text-sm mt-0.5"
-  style={{ color: 'var(--on-surface-variant)' }}
->
-  {canManageKanban
-    ? 'Drag requests through the status workflow'
-    : 'View request workflow status'}
-</p>
+        <p className="text-sm mt-0.5" style={{ color: 'var(--on-surface-variant)' }}>
+          Drag requests through the status workflow
+        </p>
       </div>
 
       {errorMessage ? (
@@ -299,15 +358,25 @@ export default function DeviceRequestKanban() {
                 {columnCards.map((card) => (
                   <div
                     key={card.requestId}
-                    draggable={canManageKanban}
+                    draggable={canManageKanban(currentUser?.email)}
                     onDragStart={() => onDragStart(card.requestId)}
-                    onClick={() => navigate(`/requests/${card.requestId}`)}
-                    title="Click to open detail"
-                    className={`rounded-xl p-3 select-none ${
-  canManageKanban
-    ? 'cursor-grab active:cursor-grabbing'
-    : 'cursor-pointer'
-}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+
+                      if (clickTimeout) {
+                        clearTimeout(clickTimeout)
+                        setClickTimeout(null)
+                        navigate(`/requests/${card.requestId}`)
+                      } else {
+                        const timeout = setTimeout(() => {
+                          setClickTimeout(null)
+                        }, 250)
+
+                        setClickTimeout(timeout)
+                      }
+                    }}
+                    title="Double-click to open detail"
+                    className="rounded-xl p-3 cursor-grab active:cursor-grabbing select-none"
                     style={{
                       background:
                         dragging === card.requestId
@@ -332,7 +401,7 @@ export default function DeviceRequestKanban() {
                     <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--primary)' }}>
                       {card.brand || '-'}
                     </p>
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-2">
                       <StatusBadge status={formatDeviceRequestStatus(card.approvalStatus)} />
                     </div>
                     <div
@@ -372,7 +441,10 @@ export default function DeviceRequestKanban() {
         onClose={() => setConfirm(null)}
         onConfirm={() => {
           if (confirm) {
-            void moveCard(confirm.requestId, confirm.col)
+            const targetCard = cards.find((card) => card.requestId === confirm.requestId)
+            if (targetCard) {
+              void moveCard(confirm.requestId, confirm.col, targetCard.approvalStatus)
+            }
           }
         }}
         danger
