@@ -34,7 +34,10 @@ import type {
 } from '../types/repair.types'
 import {
   canCreateDeviceRequestForUser,
-  isRestrictedUser,
+  getUserAccess,
+  canViewRecommendedStatus,
+  canViewRejectedStatus,
+  canDeleteDeviceRequest,
 } from '../utils/access-control'
 import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
@@ -89,15 +92,21 @@ export default function DeviceRequests() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+
   const canCreateDeviceRequest = canCreateDeviceRequestForUser(currentUser?.email)
-  const isRestrictedUserFlag = isRestrictedUser(currentUser?.email)
+  const access = getUserAccess(currentUser?.email)
+  const isRestrictedUserFlag = access.isRestricted && !access.canCreateRequest
+
+  const canViewRecommended = currentUser?.email ? canViewRecommendedStatus(currentUser.email) : true
+  const canViewRejected = currentUser?.email ? canViewRejectedStatus(currentUser.email) : true
+  const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : true
+
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
   const [departments, setDepartments] = useState<RepairDepartmentOption[]>([])
   const [categories, setCategories] = useState<RepairCategoryOption[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
-  
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState<DeviceRequestFormData>(emptyForm)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
@@ -131,22 +140,15 @@ export default function DeviceRequests() {
           fetchDeviceCategories(abortController.signal),
         ])
 
-        if (abortController.signal.aborted) {
-          return
-        }
+        if (abortController.signal.aborted) return
 
         setRequests(requestItems)
         setUsers(userOptions)
         setDepartments(departmentOptions)
         setCategories(categoryOptions)
       } catch (error) {
-        if (abortController.signal.aborted) {
-          return
-        }
-
-        setErrorMessage(
-          error instanceof Error ? error.message : 'Unable to load device requests.',
-        )
+        if (abortController.signal.aborted) return
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load device requests.')
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoading(false)
@@ -168,35 +170,31 @@ export default function DeviceRequests() {
       const requestItems = await fetchDeviceRequests({ approvalStatus: '', deviceType: '' })
       setRequests(requestItems)
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : 'Unable to load device requests.',
-      )
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load device requests.')
     }
   }
 
   const filteredRequests = useMemo(() => {
-  const query = search.trim().toLowerCase()
+    const query = search.trim().toLowerCase()
 
-  return requests
-    .filter((request) => {
-      const matchesStatus =
-        statusFilter === 'All' ||
-        request.approvalStatus === statusFilter
+    return requests
+      .filter((request) => {
+        const matchesStatus = statusFilter === 'All' || request.approvalStatus === statusFilter
+        const matchesSearch =
+          query === '' ||
+          request.id.toLowerCase().includes(query) ||
+          request.requestedBy.toLowerCase().includes(query) ||
+          request.department.toLowerCase().includes(query) ||
+          request.deviceType.toLowerCase().includes(query) ||
+          request.brand.toLowerCase().includes(query)
 
-      const matchesSearch =
-        query === '' ||
-        request.id.toLowerCase().includes(query) ||
-        request.requestedBy.toLowerCase().includes(query) ||
-        request.department.toLowerCase().includes(query) ||
-        request.deviceType.toLowerCase().includes(query) ||
-        request.brand.toLowerCase().includes(query)
+        return matchesStatus && matchesSearch
+      })
+      .sort((a, b) => a.requestId - b.requestId)
+  }, [requests, search, statusFilter])
 
-      return matchesStatus && matchesSearch
-    })
-    .sort((a, b) => a.requestId - b.requestId) // newest IDs first
-}, [requests, search, statusFilter])
+  const paginatedRequests = filteredRequests
 
-const paginatedRequests = filteredRequests
   const resetCreateForm = () => {
     setForm({
       ...emptyForm,
@@ -208,7 +206,7 @@ const paginatedRequests = filteredRequests
 
   const openCreateModal = () => {
     if (!canCreateDeviceRequest) {
-      showToast('Admin users cannot create new device requests', 'info')
+      showToast('You do not have permission to create requests', 'error')
       return
     }
 
@@ -240,10 +238,7 @@ const paginatedRequests = filteredRequests
 
       showToast('Request approved', 'success')
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'Failed to approve request.',
-        'error',
-      )
+      showToast(error instanceof Error ? error.message : 'Failed to approve request.', 'error')
     }
   }
 
@@ -271,10 +266,7 @@ const paginatedRequests = filteredRequests
 
       showToast('Request rejected', 'info')
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'Failed to reject request.',
-        'error',
-      )
+      showToast(error instanceof Error ? error.message : 'Failed to reject request.', 'error')
     } finally {
       setConfirm(null)
     }
@@ -282,7 +274,7 @@ const paginatedRequests = filteredRequests
 
   const handleCreate = async () => {
     if (!canCreateDeviceRequest) {
-      showToast('Admin users cannot create new device requests', 'error')
+      showToast('You do not have permission to create requests', 'error')
       setShowModal(false)
       return
     }
@@ -316,10 +308,7 @@ const paginatedRequests = filteredRequests
       setShowModal(false)
       resetCreateForm()
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'Failed to create device request.',
-        'error',
-      )
+      showToast(error instanceof Error ? error.message : 'Failed to create device request.', 'error')
     } finally {
       setIsSubmitting(false)
     }
@@ -333,10 +322,7 @@ const paginatedRequests = filteredRequests
       )
       showToast('Request deleted', 'success')
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : 'Failed to delete device request.',
-        'error',
-      )
+      showToast(error instanceof Error ? error.message : 'Failed to delete device request.', 'error')
     } finally {
       setConfirm(null)
     }
@@ -345,6 +331,18 @@ const paginatedRequests = filteredRequests
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSearch(event.target.value)
   }
+
+  const shouldHideApproveReject =
+    currentUser?.email
+      ? [
+          'bhupal@yetiairlines.com',
+          'umesh.acharya@yetiairlines.com',
+          'ajita@yetiairlines.com',
+          'roshan@yetiairlines.com',
+          'aayush@yetiairlines.com',
+          'raj@yetiairlines.com',
+        ].includes(currentUser.email.trim().toLowerCase())
+      : false
 
   if (isLoading) {
     return (
@@ -361,14 +359,12 @@ const paginatedRequests = filteredRequests
     <div className="p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="font-display font-bold text-xl text-on-surface">
-            Device Requests
-          </h2>
+          <h2 className="font-display font-bold text-xl text-on-surface">Device Requests</h2>
           <p className="text-sm text-on-surface-variant">
             Manage device request approvals and workflows
           </p>
         </div>
-        {canCreateDeviceRequest ? (
+        {canCreateDeviceRequest && (
           <button
             id="new-request-btn"
             onClick={openCreateModal}
@@ -376,7 +372,7 @@ const paginatedRequests = filteredRequests
           >
             <Plus size={16} /> New Request
           </button>
-        ) : null}
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -407,17 +403,24 @@ const paginatedRequests = filteredRequests
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {STATUSES.map((status) => (
-              <button
-                key={status}
-                onClick={() => {
-                  setStatusFilter(status)
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-              >
-                {formatDeviceRequestStatus(status)}
-              </button>
-            ))}
+            {STATUSES.map((status) => {
+              if (status === 'Pending' && !canViewRecommended) return null
+              if (status === 'Rejected' && !canViewRejected) return null
+
+              return (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    statusFilter === status
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  {formatDeviceRequestStatus(status)}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -504,100 +507,102 @@ const paginatedRequests = filteredRequests
                       </td>
                       <td onClick={(event) => event.stopPropagation()}>
                         {canReview ? (
-  <div className="flex items-center gap-1.5">
-    {!isRestrictedUserFlag && (
-      <>
-        <button
-          onClick={() => void handleApprove(request.requestId)}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-          style={{
-            color: 'var(--success-text)',
-            background: 'var(--success-bg)',
-          }}
-        >
-          <CheckCircle size={12} /> Approve
-        </button>
+                          <div className="flex items-center gap-1.5">
+                            {!isRestrictedUserFlag && !shouldHideApproveReject && (
+                              <>
+                                <button
+                                  onClick={() => void handleApprove(request.requestId)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                                  style={{
+                                    color: 'var(--success-text)',
+                                    background: 'var(--success-bg)',
+                                  }}
+                                >
+                                  <CheckCircle size={12} /> Approve
+                                </button>
 
-        <button
-          onClick={() =>
-            setConfirm({
-              requestId: request.requestId,
-              requestLabel: request.id,
-              action: 'reject',
-            })
-          }
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-          style={{
-            color: 'var(--error-text)',
-            background: 'var(--error-bg)',
-          }}
-        >
-          <XCircle size={12} /> Reject
-        </button>
+                                <button
+                                  onClick={() =>
+                                    setConfirm({
+                                      requestId: request.requestId,
+                                      requestLabel: request.id,
+                                      action: 'reject',
+                                    })
+                                  }
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
+                                  style={{
+                                    color: 'var(--error-text)',
+                                    background: 'var(--error-bg)',
+                                  }}
+                                >
+                                  <XCircle size={12} /> Reject
+                                </button>
+                              </>
+                            )}
 
-        <button
-          onClick={() =>
-            setConfirm({
-              requestId: request.requestId,
-              requestLabel: request.id,
-              action: 'delete',
-            })
-          }
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold"
-          style={{
-            color: 'var(--error-text)',
-            background: 'var(--error-bg)',
-          }}
-        >
-          <Trash2 size={12} /> Delete
-        </button>
-      </>
-    )}
+                            <button
+                              onClick={() => navigate(`/requests/${request.requestId}`)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{
+                                color: 'var(--primary)',
+                                background: 'var(--primary-lighter)',
+                              }}
+                            >
+                              <Edit2 size={11} /> View
+                            </button>
 
-    <button
-      onClick={() => navigate(`/requests/${request.requestId}`)}
-      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-      style={{
-        color: 'var(--primary)',
-        background: 'var(--primary-lighter)',
-      }}
-    >
-      <Edit2 size={11} /> View
-    </button>
-  </div>
-) : (
-  <div className="flex items-center gap-1.5">
-    <button
-      onClick={() => navigate(`/requests/${request.requestId}`)}
-      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-      style={{
-        color: 'var(--primary)',
-        background: 'var(--primary-lighter)',
-      }}
-    >
-      <Edit2 size={11} /> View
-    </button>
+                            {canDeleteRequest && (
+                              <button
+                                onClick={() =>
+                                  setConfirm({
+                                    requestId: request.requestId,
+                                    requestLabel: request.id,
+                                    action: 'delete',
+                                  })
+                                }
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                                style={{
+                                  color: 'var(--error-text)',
+                                  background: 'var(--error-bg)',
+                                }}
+                              >
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => navigate(`/requests/${request.requestId}`)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                              style={{
+                                color: 'var(--primary)',
+                                background: 'var(--primary-lighter)',
+                              }}
+                            >
+                              <Edit2 size={11} /> View
+                            </button>
 
-    {!isRestrictedUserFlag && (
-      <button
-        onClick={() =>
-          setConfirm({
-            requestId: request.requestId,
-            requestLabel: request.id,
-            action: 'delete',
-          })
-        }
-        className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
-        style={{
-          color: 'var(--error-text)',
-          background: 'var(--error-bg)',
-        }}
-      >
-        <Trash2 size={11} /> Delete
-      </button>
-    )}
-  </div>
-)}
+                            {canDeleteRequest && (
+                              <button
+                                onClick={() =>
+                                  setConfirm({
+                                    requestId: request.requestId,
+                                    requestLabel: request.id,
+                                    action: 'delete',
+                                  })
+                                }
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+                                style={{
+                                  color: 'var(--error-text)',
+                                  background: 'var(--error-bg)',
+                                }}
+                              >
+                                <Trash2 size={11} /> Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
@@ -606,180 +611,181 @@ const paginatedRequests = filteredRequests
             </tbody>
           </table>
         </div>
-        </div>
-      {!isRestrictedUserFlag ? (
+      </div>
+
+      {canCreateDeviceRequest && (
         <Modal
           isOpen={showModal && canCreateDeviceRequest}
           onClose={() => setShowModal(false)}
           title="New Device Request"
           size="md"
         >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Requested By
-            </label>
-            <select
-              value={form.requestedById ? String(form.requestedById) : ''}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  requestedById: Number(event.target.value),
-                }))
-              }
-              className="input-field"
-            >
-              <option value="">
-                {users.length === 0 ? 'No users available' : 'Select requester'}
-              </option>
-              {users.map((user) => (
-                <option key={user.user_id} value={user.user_id}>
-                  {user.user_name}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Requested By
+              </label>
+              <select
+                value={form.requestedById ? String(form.requestedById) : ''}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    requestedById: Number(event.target.value),
+                  }))
+                }
+                className="input-field"
+              >
+                <option value="">
+                  {users.length === 0 ? 'No users available' : 'Select requester'}
                 </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Department
-            </label>
-            <select
-              value={form.departmentId ? String(form.departmentId) : ''}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  departmentId: Number(event.target.value),
-                }))
-              }
-              className="input-field"
-            >
-              <option value="">
-                {departments.length === 0 ? 'No departments available' : 'Select department'}
-              </option>
-              {departments.map((department) => (
-                <option key={department.department_id} value={department.department_id}>
-                  {department.department_name}
+                {users.map((user) => (
+                  <option key={user.user_id} value={user.user_id}>
+                    {user.user_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Department
+              </label>
+              <select
+                value={form.departmentId ? String(form.departmentId) : ''}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    departmentId: Number(event.target.value),
+                  }))
+                }
+                className="input-field"
+              >
+                <option value="">
+                  {departments.length === 0 ? 'No departments available' : 'Select department'}
                 </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Requested For
-            </label>
-            <input
-              value={form.requestedFor}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  requestedFor: event.target.value,
-                }))
-              }
-              placeholder="e.g. Finance team"
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Device Type
-            </label>
-            <select
-              value={form.deviceType}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  deviceType: event.target.value,
-                }))
-              }
-              className="input-field"
-            >
-              <option value="">
-                {categories.length === 0 ? 'No device categories available' : 'Select device type'}
-              </option>
-              {categories.map((category) => (
-                <option key={category.category_id} value={category.category_name}>
-                  {category.category_name}
+                {departments.map((department) => (
+                  <option key={department.department_id} value={department.department_id}>
+                    {department.department_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Requested For
+              </label>
+              <input
+                value={form.requestedFor}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    requestedFor: event.target.value,
+                  }))
+                }
+                placeholder="e.g. Finance team"
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Device Type
+              </label>
+              <select
+                value={form.deviceType}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    deviceType: event.target.value,
+                  }))
+                }
+                className="input-field"
+              >
+                <option value="">
+                  {categories.length === 0 ? 'No device categories available' : 'Select device type'}
                 </option>
-              ))}
-            </select>
+                {categories.map((category) => (
+                  <option key={category.category_id} value={category.category_name}>
+                    {category.category_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Preferred Brand/Model
+              </label>
+              <input
+                value={form.brand}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    brand: event.target.value,
+                  }))
+                }
+                placeholder="e.g. Dell XPS 15"
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Quantity
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={form.quantity}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    quantity: Math.max(1, Number(event.target.value) || 1),
+                  }))
+                }
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Priority
+              </label>
+              <select
+                value={form.priority}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    priority: event.target.value as Priority,
+                  }))
+                }
+                className="input-field"
+              >
+                {PRIORITIES.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                Reason
+              </label>
+              <textarea
+                value={form.reason}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    reason: event.target.value,
+                  }))
+                }
+                rows={2}
+                placeholder="Why is this device needed?"
+                className="input-field resize-none"
+              />
+            </div>
+            {lookupErrorMessage ? (
+              <p className="text-xs sm:col-span-2" style={{ color: 'var(--error-text)' }}>
+                {lookupErrorMessage}
+              </p>
+            ) : null}
           </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Preferred Brand/Model
-            </label>
-            <input
-              value={form.brand}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  brand: event.target.value,
-                }))
-              }
-              placeholder="e.g. Dell XPS 15"
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Quantity
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={form.quantity}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  quantity: Math.max(1, Number(event.target.value) || 1),
-                }))
-              }
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Priority
-            </label>
-            <select
-              value={form.priority}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  priority: event.target.value as Priority,
-                }))
-              }
-              className="input-field"
-            >
-              {PRIORITIES.map((priority) => (
-                <option key={priority} value={priority}>
-                  {priority}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
-              Reason
-            </label>
-            <textarea
-              value={form.reason}
-              onChange={(event) =>
-                setForm((currentForm) => ({
-                  ...currentForm,
-                  reason: event.target.value,
-                }))
-              }
-              rows={2}
-              placeholder="Why is this device needed?"
-              className="input-field resize-none"
-            />
-          </div>
-          {lookupErrorMessage ? (
-            <p className="text-xs sm:col-span-2" style={{ color: 'var(--error-text)' }}>
-              {lookupErrorMessage}
-            </p>
-          ) : null}
-        </div>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setShowModal(false)} className="btn-ghost px-5 py-2.5 rounded-xl">
               Cancel
@@ -789,7 +795,7 @@ const paginatedRequests = filteredRequests
             </button>
           </div>
         </Modal>
-      ) : null}
+      )}
 
       <ConfirmDialog
         isOpen={Boolean(confirm)}
