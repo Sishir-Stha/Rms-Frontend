@@ -1,6 +1,6 @@
 export type UserStatus = 'Active' | 'Inactive'
 export type RepairStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed'
-export type RequestApprovalStatus = 'Requested' | 'Pending' | 'Approved' | 'Rejected'
+export type RequestApprovalStatus = 'Requested' | 'Pending' | 'Approved' | 'Rejected' | 'Fulfilled';
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved'
 export type Priority = 'Critical' | 'High' | 'Medium' | 'Low'
 export type ToastType = 'success' | 'error' | 'info' | 'warning'

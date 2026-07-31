@@ -82,6 +82,7 @@ const REQUEST_STATUSES: RequestApprovalStatus[] = [
   'Pending',
   'Approved',
   'Rejected',
+  'Fulfilled', // <--- Add this
 ]
 
 const formatDateInputValue = (value: string | null): string =>
@@ -372,6 +373,9 @@ export default function RequestDetail() {
     timeline.push({ color: 'var(--error-text)', title: `Rejected by ${form.approvedByName}`, date: form.approvalDate })
   }
 
+  if (form.approvalStatus === 'Fulfilled' && form.approvedByName && form.approvalDate) {
+  timeline.push({ color: '#0891b2', title: `Fulfilled by ${form.approvedByName}`, date: form.approvalDate })
+}
   // Approve/Reject buttons: only for users who can manage approval workflow (not view-only)
   const canReview =
     !viewOnly &&

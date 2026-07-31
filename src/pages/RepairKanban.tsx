@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import DateRangeFilter from '../components/DateRangeFilter'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../context/ToastContext'
@@ -39,6 +40,10 @@ export default function RepairKanban() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  
+  // Date filter states
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     const unsubscribe = subscribeToRepairsChanged(() => {
@@ -65,7 +70,17 @@ export default function RepairKanban() {
         )
 
         if (!abortController.signal.aborted) {
-          setCards(response)
+          // Filter by date range
+          let filteredCards = response
+          if (dateFrom || dateTo) {
+            filteredCards = response.filter((card: RepairListItem) => {
+              const cardDate = card.expectedCompletion ? String(card.expectedCompletion).split('T')[0] : ''
+              if (dateFrom && cardDate < dateFrom) return false
+              if (dateTo && cardDate > dateTo) return false
+              return true
+            })
+          }
+          setCards(filteredCards)
         }
       } catch (error) {
         if (abortController.signal.aborted) {
@@ -87,7 +102,7 @@ export default function RepairKanban() {
     return () => {
       abortController.abort()
     }
-  }, [refreshKey])
+  }, [refreshKey, dateFrom, dateTo])
 
   const onDragStart = (id: string) => setDragging(id)
 
@@ -175,6 +190,7 @@ export default function RepairKanban() {
 
   return (
     <div className="p-6">
+      {/* Updated Header with Date Range Filter on the right */}
       <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="font-display font-bold text-xl" style={{ color: 'var(--on-surface)' }}>
@@ -184,6 +200,14 @@ export default function RepairKanban() {
             Backend-driven repair board grouped by status
           </p>
         </div>
+        
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          onApply={(from, to) => {
+            setDateFrom(from)
+            setDateTo(to)
+          }}
+        />
       </div>
 
       {isLoading ? (
@@ -219,114 +243,114 @@ export default function RepairKanban() {
             const columnCards = column.cards
 
             return (
-            <div
-              key={column.id}
-              className="flex-shrink-0 flex flex-col rounded-2xl"
-              style={{
-                width: '280px',
-                background: 'var(--kanban-col-bg)',
-                border: '1px solid var(--border-color)',
-                borderTop: `3px solid ${column.color}`,
-              }}
-              onDragOver={(event) => onDragOver(event, column.id)}
-              onDrop={(event) => onDrop(event, column.id)}
-            >
               <div
-                className="flex items-center justify-between px-4 py-3"
-                style={{ borderBottom: '1px solid var(--border-color)' }}
+                key={column.id}
+                className="flex-shrink-0 flex flex-col rounded-2xl"
+                style={{
+                  width: '280px',
+                  background: 'var(--kanban-col-bg)',
+                  border: '1px solid var(--border-color)',
+                  borderTop: `3px solid ${column.color}`,
+                }}
+                onDragOver={(event) => onDragOver(event, column.id)}
+                onDrop={(event) => onDrop(event, column.id)}
               >
-                <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: '1px solid var(--border-color)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: column.color }}
+                    />
+                    <span className="font-semibold text-sm" style={{ color: 'var(--on-surface)' }}>
+                      {column.label}
+                    </span>
+                  </div>
                   <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: column.color }}
-                  />
-                  <span className="font-semibold text-sm" style={{ color: 'var(--on-surface)' }}>
-                    {column.label}
+                    className="text-xs font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${column.color}20`, color: column.color }}
+                  >
+                    {columnCards.length}
                   </span>
                 </div>
-                <span
-                  className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: `${column.color}20`, color: column.color }}
+                <div
+                  className="flex-1 p-3 space-y-3 transition-colors"
+                  style={{
+                    minHeight: '200px',
+                    background: dragOver === column.id ? 'var(--kanban-col-hover)' : undefined,
+                  }}
                 >
-                  {columnCards.length}
-                </span>
-              </div>
-              <div
-                className="flex-1 p-3 space-y-3 transition-colors"
-                style={{
-                  minHeight: '200px',
-                  background: dragOver === column.id ? 'var(--kanban-col-hover)' : undefined,
-                }}
-              >
-                {columnCards.map((card) => (
+                  {columnCards.map((card) => (
                   <div
                     key={card.repairId}
                     draggable
                     onDragStart={() => onDragStart(card.id)}
-                    onClick={() => navigate(`/repairs/${card.repairId}`)}
+                    onDoubleClick={() => navigate(`/repairs/${card.repairId}`)}
                     className="rounded-xl p-3 cursor-grab active:cursor-grabbing select-none"
-                    title="Open repair detail"
-                    style={{
-                      background:
-                        dragging === card.id
-                          ? 'var(--kanban-card-dragging)'
-                          : 'var(--kanban-card-bg)',
-                      border: '1px solid var(--border-color)',
-                      opacity: dragging === card.id ? 0.5 : 1,
-                      transform: 'translateZ(0)',
-                      transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-                    }}
-                    onMouseEnter={handleCardMouseEnter}
-                    onMouseLeave={handleCardMouseLeave}
+                    title="Double-click to open repair detail"
+                      style={{
+                        background:
+                          dragging === card.id
+                            ? 'var(--kanban-card-dragging)'
+                            : 'var(--kanban-card-bg)',
+                        border: '1px solid var(--border-color)',
+                        opacity: dragging === card.id ? 0.5 : 1,
+                        transform: 'translateZ(0)',
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                      }}
+                      onMouseEnter={handleCardMouseEnter}
+                      onMouseLeave={handleCardMouseLeave}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <code className="text-xs font-medium" style={{ color: 'var(--secondary)' }}>
-                        {card.id}
-                      </code>
-                      <StatusBadge status={card.priority} />
-                    </div>
-                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--on-surface)' }}>
-                      {card.device}
-                    </p>
-                    <p className="text-xs mb-3 line-clamp-2" style={{ color: 'var(--on-surface-variant)' }}>
-                      {card.issue}
-                    </p>
-                    <div
-                      className="flex items-center justify-between"
-                      style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <div
-                          className="w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
-                          style={{ background: 'rgba(98,223,125,0.15)', color: '#16a34a' }}
-                        >
-                          {card.reportedBy
-                            .split(' ')
-                            .map((name) => name[0])
-                            .join('') || '?'}
-                        </div>
-                        <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
-                          {card.reportedBy.split(' ')[0]}
-                        </span>
+                          {card.id}
+                        </code>
+                        <StatusBadge status={card.priority} />
                       </div>
-                      {card.expectedCompletion && (
-                        <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
-                          {card.expectedCompletion}
-                        </span>
-                      )}
+                      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--on-surface)' }}>
+                        {card.device}
+                      </p>
+                      <p className="text-xs mb-3 line-clamp-2" style={{ color: 'var(--on-surface-variant)' }}>
+                        {card.issue}
+                      </p>
+                      <div
+                        className="flex items-center justify-between"
+                        style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className="w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold"
+                            style={{ background: 'rgba(98,223,125,0.15)', color: '#16a34a' }}
+                          >
+                            {card.reportedBy
+                              .split(' ')
+                              .map((name) => name[0])
+                              .join('') || '?'}
+                          </div>
+                          <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
+                            {card.reportedBy.split(' ')[0]}
+                          </span>
+                        </div>
+                        {card.expectedCompletion && (
+                          <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
+                            {String(card.expectedCompletion).split('T')[0]}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {columnCards.length === 0 && (
-                  <div
-                    className="flex flex-col items-center justify-center py-8 text-xs text-center opacity-40"
-                    style={{ color: 'var(--on-surface-variant)' }}
-                  >
-                    <p>Drop cards here</p>
-                  </div>
-                )}
+                  ))}
+                  {columnCards.length === 0 && (
+                    <div
+                      className="flex flex-col items-center justify-center py-8 text-xs text-center opacity-40"
+                      style={{ color: 'var(--on-surface-variant)' }}
+                    >
+                      <p>Drop cards here</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
             )
           })}
         </div>

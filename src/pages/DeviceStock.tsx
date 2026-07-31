@@ -1,3 +1,4 @@
+import DateRangeFilter from '../components/DateRangeFilter'
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import {
   ChevronLeft,
@@ -9,18 +10,15 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
-
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../context/ToastContext'
 
-
 import {
   DEVICE_CATEGORIES,
   DEPARTMENTS,
 } from '../data/dummyData'
-
 
 import {
   getDeviceStocks,
@@ -31,16 +29,13 @@ import {
 } from '../api/device-stock'
 import { getDepartments, type Department } from '../api/department'
 
-
 // Get current user ID (you may need to get this from context)
 const CURRENT_USER_ID = 1
-
 
 import type {
   DeviceStockRecord,
   DeviceStockStatus,
 } from '../types/app'
-
 
 interface DeviceStockFormData {
   deviceCategory: string
@@ -52,18 +47,14 @@ interface DeviceStockFormData {
   status: DeviceStockStatus
 }
 
-
 interface ConfirmState {
   stockId: string
   action: 'delete'
 }
 
-
 type StatusFilter = 'All' | 'IN' | 'OUT'
 
-
 const PAGE_SIZE = 8
-
 
 const STATUSES: StatusFilter[] = [
   'All',
@@ -71,19 +62,16 @@ const STATUSES: StatusFilter[] = [
   'OUT',
 ]
 
-
 const SUMMARY_STATUSES: DeviceStockStatus[] = [
   'IN',
   'OUT',
 ]
-
 
 const ORIGIN_SECTORS = [
   'Procurement',
   'Vendor Return',
   'Refurbished',
 ]
-
 
 const emptyForm: DeviceStockFormData = {
   deviceCategory: '',
@@ -95,7 +83,6 @@ const emptyForm: DeviceStockFormData = {
   status: 'IN',
 }
 
-
 const SUMMARY_COLORS: Record<
   DeviceStockStatus,
   string
@@ -104,88 +91,73 @@ const SUMMARY_COLORS: Record<
   OUT: '#33cc33',
 }
 
-
 const STATUS_LABELS: Record<DeviceStockStatus, string> = {
   IN: 'IN (Destination not Reached)',
   OUT: 'OUT (Destination Reached)',
 }
-
 
 const STATUS_COLORS: Record<DeviceStockStatus, string> = {
   IN: '#ff0000',
   OUT: '#33cc33',
 }
 
-
 export default function DeviceStock() {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
-
   const [stocks, setStocks] =
     useState<DeviceStockRecord[]>([])
 
-
   const [departments, setDepartments] =
     useState<Department[]>([])
-
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] =
     useState<StatusFilter>('All')
 
-
   const [page, setPage] = useState(1)
-
 
   const [showModal, setShowModal] =
     useState(false)
 
-
   const [form, setForm] =
     useState<DeviceStockFormData>(emptyForm)
-
 
   const [confirm, setConfirm] =
     useState<ConfirmState | null>(null)
 
+    
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const [isLoading, setIsLoading] =
     useState(true)
 
-
   const [isSubmitting, setIsSubmitting] =
     useState(false)
-
 
   // ─── helper to map raw API stock → DeviceStockRecord ───────────────────────
   const mapStock = (stock: any): DeviceStockRecord => ({
     id: String(stock.stock_id),
     deviceCategory: stock.category_name || '',
-    // FIX: map device_code so it shows in the table
     deviceCode: stock.device_code || '',
     date: stock.date ? stock.date.split('T')[0] : '',
     originSector: stock.origin_sector || '',
     originDepartment: stock.origin_department_name || '',
-    // FIX: map destination_sector as destinationSector for the table column
     destinationSector: stock.destination_sector || '',
     destination: stock.destination_department_name || null,
     destinationRequest: stock.destination_sector || null,
-    // FIX: map issue and quantity so they show in the table
     issue: stock.issue || '',
     quantity: Number(stock.device_quantity) || 1,
     status: stock.status,
   })
 
-
   useEffect(() => {
     const loadStocks = async () => {
       setIsLoading(true)
 
-
       try {
         const response = await getDeviceStocks()
-
 
         if (response.success && response.data) {
           setStocks(response.data.result.map(mapStock))
@@ -197,7 +169,6 @@ export default function DeviceStock() {
         setIsLoading(false)
       }
     }
-
 
     const fetchDepartments = async () => {
       try {
@@ -214,15 +185,12 @@ export default function DeviceStock() {
       }
     }
 
-
     void loadStocks()
     void fetchDepartments()
   }, [])
 
-
-  const filteredStocks = useMemo(() => {
+   const filteredStocks = useMemo(() => {
     const query = search.trim().toLowerCase()
-
 
     return stocks.filter((stock) => {
       const matchesStatus =
@@ -230,14 +198,21 @@ export default function DeviceStock() {
         (statusFilter === 'IN' && stock.status === 'IN') ||
         (statusFilter === 'OUT' && stock.status === 'OUT')
 
+      // Date filtering
+      const matchesDate = (() => {
+        if (!dateFrom && !dateTo) return true
+        const stockDate = stock.date
+        if (dateFrom && stockDate < dateFrom) return false
+        if (dateTo && stockDate > dateTo) return false
+        return true
+      })()
 
       const safe = (v: any) => (v ?? '').toString().toLowerCase()
 
       const matchesSearch =
       query === '' ||
-      safe(stock.id).includes(query) ||
-      safe(stock.deviceCategory).includes(query) ||
       safe(stock.deviceCode).includes(query) ||
+      safe(stock.deviceCategory).includes(query) ||
       safe(stock.issue).includes(query) ||
       safe(stock.date).includes(query) ||
       safe(stock.quantity).includes(query) ||
@@ -248,34 +223,28 @@ export default function DeviceStock() {
       safe(stock.destinationRequest).includes(query) ||
       safe(stock.status).includes(query)
 
-
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesDate && matchesSearch
     })
-  }, [stocks, search, statusFilter])
-
+  }, [stocks, search, statusFilter, dateFrom, dateTo])
 
   const totalPages = Math.max(
     1,
     Math.ceil(filteredStocks.length / PAGE_SIZE),
   )
 
-
   const paginatedStocks = filteredStocks.slice(
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE,
   )
 
-
   const resetCreateForm = () => {
     setForm(emptyForm)
   }
-
 
   const openCreateModal = () => {
     resetCreateForm()
     setShowModal(true)
   }
-
 
   const handleCreate = async () => {
     if (
@@ -288,9 +257,7 @@ export default function DeviceStock() {
       return
     }
 
-
     setIsSubmitting(true)
-
 
     try {
       const selectedCategory =
@@ -306,7 +273,6 @@ export default function DeviceStock() {
           (dept) => dept.department_name === form.destinationDepartment,
         )
 
-
       const payload: CreateDeviceStockRequest = {
         device_category_id: selectedCategory?.id || 0,
         device_code: null,
@@ -321,21 +287,16 @@ export default function DeviceStock() {
         issue: null,
       }
 
-
       const response = await createDeviceStock(payload)
-
 
       if (response.success) {
         showToast('Device stock created successfully', 'success')
 
-
         setShowModal(false)
         resetCreateForm()
 
-
         // Reload stocks
         const reloadResponse = await getDeviceStocks()
-
 
         if (reloadResponse.success && reloadResponse.data) {
           setStocks(reloadResponse.data.result.map(mapStock))
@@ -349,25 +310,21 @@ export default function DeviceStock() {
     }
   }
 
-
   const handleDelete = async (stockId: string) => {
     try {
       const deletePayload: DeleteDeviceStockRequest = {
         updated_by: CURRENT_USER_ID,
       }
 
-
       const response = await deleteDeviceStock(
         Number(stockId),
         deletePayload,
       )
 
-
       if (response.success) {
         setStocks((prev) =>
           prev.filter((item) => item.id !== stockId),
         )
-
 
         showToast('Device stock deleted successfully', 'success')
       }
@@ -379,7 +336,6 @@ export default function DeviceStock() {
     }
   }
 
-
   const handleSearchChange = (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
@@ -387,13 +343,11 @@ export default function DeviceStock() {
     setPage(1)
   }
 
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-
 
           <p className="text-sm text-on-surface-variant">
             Loading device stock...
@@ -403,7 +357,6 @@ export default function DeviceStock() {
     )
   }
 
-
   return (
     <div className="p-6 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -412,12 +365,10 @@ export default function DeviceStock() {
             Device Stock
           </h2>
 
-
           <p className="text-sm text-on-surface-variant">
             Manage stock transfers and inventory
           </p>
         </div>
-
 
         <button
           onClick={openCreateModal}
@@ -427,7 +378,6 @@ export default function DeviceStock() {
           New Entry
         </button>
       </div>
-
 
       <div className="grid grid-cols-2 gap-3">
         {SUMMARY_STATUSES.map((status) => (
@@ -442,7 +392,6 @@ export default function DeviceStock() {
               {stocks.filter((stock) => stock.status === status).length}
             </p>
 
-
             <p className="text-xs text-on-surface-variant mt-1">
               {STATUS_LABELS[status]}
             </p>
@@ -450,175 +399,142 @@ export default function DeviceStock() {
         ))}
       </div>
 
-
-      <div className="section-card">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-start">
-          <div className="relative flex-1 max-w-sm">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
-            />
-
-
-            <input
-              value={search}
-              onChange={handleSearchChange}
-              placeholder="Search device category,device code..."
-              className="input-field pl-9"
-            />
+                <div className="section-card">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          {/* Left Group: Search + Status Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+              />
+              <input
+                value={search}
+                onChange={handleSearchChange}
+                placeholder="Search device category, device code..."
+                className="input-field pl-9"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {STATUSES.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    setStatusFilter(status)
+                    setPage(1)
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                    statusFilter === status
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-surface-container'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
           </div>
-
-
-          <div className="flex items-center gap-2">
-            {STATUSES.map((status) => (
-              <button
-                key={status}
-                onClick={() => {
-                  setStatusFilter(status)
-                  setPage(1)
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  statusFilter === status
-                    ? 'bg-primary text-on-primary'
-                    : 'bg-surface-container'
-                }`}
-              >
-                {status}
-              </button>
-            ))}
+          
+          {/* Right Group: Date Range Filter */}
+          <div className="flex-shrink-0">
+            <DateRangeFilter
+              onApply={(from, to) => {
+                setDateFrom(from)
+                setDateTo(to)
+                setPage(1)
+              }}
+            />
           </div>
         </div>
       </div>
 
-
       <div className="section-card overflow-hidden">
         <div className="table-container">
-          <table className="data-table">
+          {/* table-fixed ensures it fits the screen without horizontal scrolling */}
+          <table className="data-table table-fixed w-full">
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Device Category</th>
-                <th>Device Code</th>
-                <th>Origin Sector</th>
-                <th>Origin Department</th>
-                <th>Destination Sector</th>
-                <th>Destination Department</th>
-                <th>Issue/Reason</th>
-                <th>Date</th>
-                <th>Quantity</th>
-                <th>Status</th>
-                <th>Action</th>
+              <tr className="border-b border-outline-variant/30">
+                {/* EXPLICIT WIDTHS ADDED HERE FOR PERFECT PROPORTIONAL GAPS */}
+                <th className="w-[6%] whitespace-nowrap py-3 text-left">Code</th>
+                <th className="w-[10%] py-3 text-left">Category</th>
+                <th className="w-[6%] whitespace-nowrap py-3 text-center">Qty</th>
+                <th className="w-[12%] py-3 text-left">Origin</th>
+                <th className="w-[12%] py-3 text-left">Origin Dept</th>
+                <th className="w-[12%] py-3 text-left">Destination</th>
+                <th className="w-[12%] py-3 text-left">Dest Dept</th>
+                <th className="w-[12%] py-3 text-left">Issue</th>
+                <th className="w-[10%] whitespace-nowrap py-3 text-left">Date</th>
+                <th className="w-[8%] whitespace-nowrap py-3 text-center">Status</th>
+                <th className="w-[10%] whitespace-nowrap py-3 text-center">Action</th>
               </tr>
             </thead>
 
-
             <tbody>
-              {paginatedStocks.map((stock) => (
-                <tr
-                  key={stock.id}
-                  className="cursor-pointer"
-                  onDoubleClick={() =>
-                    navigate(`/device-stock/${stock.id}`)
-                  }
-                >
-                  <td>
-                    <code className="text-secondary text-xs">
-                      {stock.id}
-                    </code>
-                  </td>
-
-
-                  <td>{stock.deviceCategory || '—'}</td>
-
-
-                  {/* FIX: was hardcoded '—', now reads real deviceCode */}
-                  <td>{stock.deviceCode || '—'}</td>
-
-
-                  <td>{stock.originSector || '—'}</td>
-
-
-                  <td>{stock.originDepartment || '—'}</td>
-
-
-                  {/* FIX: was hardcoded '—', now reads real destinationSector */}
-                  <td>{stock.destinationSector || '—'}</td>
-
-
-                  <td>{stock.destination || '—'}</td>
-
-
-                  {/* FIX: was hardcoded '—', now reads real issue */}
-                  <td>{stock.issue || '—'}</td>
-
-
-                  <td>{stock.date || '—'}</td>
-
-
-                  {/* FIX: was hardcoded '1', now reads real quantity */}
-                  <td className="text-center">{stock.quantity ?? 1}</td>
-
-
-                  <td>
-                    <div
-                      style={{
-                        display: 'inline-flex',
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        backgroundColor: STATUS_COLORS[stock.status] + '20',
-                        color: STATUS_COLORS[stock.status],
-                      }}
-                    >
-                      {stock.status}
-                    </div>
-                  </td>
-
-
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          navigate(`/device-stock/${stock.id}`)
-                        }
-                        className="btn-secondary px-2 py-1"
-                        title="Edit"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-
-
-                      <button
-                        onClick={() =>
-                          setConfirm({
-                            stockId: stock.id,
-                            action: 'delete',
-                          })
-                        }
-                        className="btn-secondary px-2 py-1"
-                        style={{
-                          color: 'var(--error-text)',
-                          background: 'var(--error-bg)',
-                        }}
-                        title="Delete"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+              {paginatedStocks.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="text-center py-12 text-on-surface-variant">
+                    No device stocks found
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedStocks.map((stock) => (
+                  <tr
+                    key={stock.id}
+                    className="cursor-pointer border-b border-outline-variant/20 hover:bg-surface-container/50 transition-colors"
+                    onDoubleClick={() => navigate(`/device-stock/${stock.id}`)}
+                  >
+                    <td className="whitespace-nowrap py-3" onClick={(e) => e.stopPropagation()}>
+                      <code className="text-secondary text-xs font-medium">{stock.deviceCode || '—'}</code>
+                    </td>
+                    <td className="py-3">{stock.deviceCategory || '—'}</td>
+                    <td className="whitespace-nowrap py-3 text-center">{stock.quantity ?? 1}</td>
+                    <td className="py-3">{stock.originSector || '—'}</td>
+                    <td className="py-3">{stock.originDepartment || '—'}</td>
+                    <td className="py-3">{stock.destinationSector || '—'}</td>
+                    <td className="py-3">{stock.destination || '—'}</td>
+                    <td className="py-3">{stock.issue || '—'}</td>
+                    <td className="whitespace-nowrap py-3">{stock.date || '—'}</td>
+                    <td className="whitespace-nowrap py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <StatusBadge status={stock.status} />
+                    </td>
+                    <td className="whitespace-nowrap py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => navigate(`/device-stock/${stock.id}`)}
+                          className="btn-secondary px-2 py-1"
+                          title="Edit"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setConfirm({
+                              stockId: stock.id,
+                              action: 'delete',
+                            })
+                          }
+                          className="btn-secondary px-2 py-1"
+                          style={{
+                            color: 'var(--error-text)',
+                            background: 'var(--error-bg)',
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-
 
         <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10 mt-3">
           <p className="text-xs text-on-surface-variant">
             Page {page} of {totalPages}
           </p>
-
 
           <div className="flex items-center gap-2">
             <button
@@ -628,7 +544,6 @@ export default function DeviceStock() {
             >
               <ChevronLeft size={14} />
             </button>
-
 
             <button
               disabled={page === totalPages}
@@ -640,7 +555,6 @@ export default function DeviceStock() {
           </div>
         </div>
       </div>
-
 
       <Modal
         isOpen={showModal}
@@ -654,12 +568,10 @@ export default function DeviceStock() {
               Device Stock Details
             </h3>
 
-
             <p className="text-sm text-on-surface-variant mt-1">
               Create a new stock entry
             </p>
           </div>
-
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <select
@@ -669,8 +581,7 @@ export default function DeviceStock() {
               }
               className="input-field"
             >
-              <option value="">Device Category</option>
-
+              <option value="">Category</option>
 
               {DEVICE_CATEGORIES.map((category) => (
                 <option key={category.id} value={category.name}>
@@ -678,7 +589,6 @@ export default function DeviceStock() {
                 </option>
               ))}
             </select>
-
 
             <input
               type="date"
@@ -689,7 +599,6 @@ export default function DeviceStock() {
               className="input-field"
             />
 
-
             <select
               value={form.originSector}
               onChange={(e) =>
@@ -697,8 +606,7 @@ export default function DeviceStock() {
               }
               className="input-field"
             >
-              <option value="">Origin Sector</option>
-
+              <option value="">Origin</option>
 
               {ORIGIN_SECTORS.map((sector) => (
                 <option key={sector} value={sector}>
@@ -707,7 +615,6 @@ export default function DeviceStock() {
               ))}
             </select>
 
-
             <select
               value={form.originDepartment}
               onChange={(e) =>
@@ -715,8 +622,7 @@ export default function DeviceStock() {
               }
               className="input-field"
             >
-              <option value="">Origin Department</option>
-
+              <option value="">Origin Dept</option>
 
               {departments.map((dept) => (
                 <option
@@ -728,7 +634,6 @@ export default function DeviceStock() {
               ))}
             </select>
 
-
             <select
               value={form.destinationSector}
               onChange={(e) =>
@@ -736,8 +641,7 @@ export default function DeviceStock() {
               }
               className="input-field"
             >
-              <option value="">Destination Sector</option>
-
+              <option value="">Destination</option>
 
               {ORIGIN_SECTORS.map((sector) => (
                 <option key={sector} value={sector}>
@@ -746,7 +650,6 @@ export default function DeviceStock() {
               ))}
             </select>
 
-
             <select
               value={form.destinationDepartment}
               onChange={(e) =>
@@ -754,8 +657,7 @@ export default function DeviceStock() {
               }
               className="input-field"
             >
-              <option value="">Destination Department</option>
-
+              <option value="">Dest Dept</option>
 
               {departments.map((dept) => (
                 <option
@@ -767,7 +669,6 @@ export default function DeviceStock() {
               ))}
             </select>
           </div>
-
 
           <select
             value={form.status}
@@ -783,7 +684,6 @@ export default function DeviceStock() {
             <option value="OUT">OUT (Destination Reached)</option>
           </select>
 
-
           <div className="flex justify-end gap-2 pt-3">
             <button
               onClick={() => setShowModal(false)}
@@ -791,7 +691,6 @@ export default function DeviceStock() {
             >
               Cancel
             </button>
-
 
             <button
               onClick={handleCreate}
@@ -803,7 +702,6 @@ export default function DeviceStock() {
           </div>
         </div>
       </Modal>
-
 
       <ConfirmDialog
         isOpen={confirm !== null}
