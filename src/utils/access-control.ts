@@ -26,7 +26,7 @@ const LIMITED_DRAG_USERS = new Set<string>([
 
 const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
   'anjana@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['/', '/requests', '/request-kanban', '/reports'],
     canViewRequested: false,
     canViewRecommended: false,
@@ -59,7 +59,7 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditRequesterInformation: false,
   },
   'ajita@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,
@@ -70,7 +70,7 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditRequesterInformation: false,
   },
   'roshan@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,
@@ -81,7 +81,7 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditRequesterInformation: false,
   },
   'aayush@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,
@@ -92,7 +92,7 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditRequesterInformation: false,
   },
   'raj@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,
@@ -103,7 +103,7 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditRequesterInformation: false,
   },
   'bhupal@yetiairlines.com': {
-    canCreateRequest: false,
+    canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,

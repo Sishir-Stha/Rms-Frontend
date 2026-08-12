@@ -58,7 +58,13 @@ export default function DeviceRequestKanban() {
   const [clickTimeout, setClickTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
   
   const [filterMode, setFilterMode] = useState<'default' | 'custom' | 'all'>('default')
-  const [dateFrom, setDateFrom] = useState('')
+  const getOneMonthAgo = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+};
+
+const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
