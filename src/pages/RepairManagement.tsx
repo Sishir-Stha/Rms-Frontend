@@ -1,3 +1,4 @@
+import DateRangeFilter from '../components/DateRangeFilter'
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
 import {
   ChevronLeft,
@@ -71,6 +72,7 @@ export default function RepairManagement() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  
   const [repairs, setRepairs] = useState<RepairListItem[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All')
@@ -88,6 +90,10 @@ export default function RepairManagement() {
   const [vendors, setVendors] = useState<RepairVendorOption[]>([])
   const [categories, setCategories] = useState<RepairCategoryOption[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
+  
+  // Date filter states
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     const unsubscribe = subscribeToRepairsChanged(() => {
@@ -105,8 +111,6 @@ export default function RepairManagement() {
       setErrorMessage(null)
 
       try {
-        // Fetch all repairs with status filter only
-        // Client-side search filtering will be applied in useMemo below
         const response = await fetchRepairs(
           {
             status: statusFilter === 'All' ? '' : statusFilter,
@@ -207,23 +211,30 @@ export default function RepairManagement() {
     }
   }, [categories.length, currentUser?.id, departments.length, showCreateModal, users.length, vendors.length])
 
-  // Client-side filtering for status and device name search
-  // This ensures real-time search without additional API calls
+  // Client-side filtering for status, date, and device name search
   const filtered = useMemo(() => {
     return repairs.filter((repair) => {
       // Filter by selected status
       const matchesStatus =
         statusFilter === 'All' || repair.status === statusFilter
 
+      // Filter by date range
+      const matchesDate = (() => {
+        if (!dateFrom && !dateTo) return true
+        const repairDate = repair.expectedCompletion ? String(repair.expectedCompletion).split('T')[0] : ''
+        if (dateFrom && repairDate < dateFrom) return false
+        if (dateTo && repairDate > dateTo) return false
+        return true
+      })()
+
       // Filter by device name (case-insensitive)
-      // If search is empty, all repairs match the search filter
       const query = search.toLowerCase().trim()
       const matchesSearch =
         !query || repair.device.toLowerCase().includes(query)
 
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesDate && matchesSearch
     })
-  }, [repairs, search, statusFilter])
+  }, [repairs, search, statusFilter, dateFrom, dateTo])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -252,10 +263,9 @@ export default function RepairManagement() {
     })()
   }
 
-  // Handle search input change with real-time filtering
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSearch(event.target.value)
-    setPage(1) // Reset to first page when search term changes
+    setPage(1)
   }
 
   const openCreateModal = () => {
@@ -320,7 +330,6 @@ export default function RepairManagement() {
       }
     })()
   }
- 
 
   return (
     <div className="p-6 space-y-5">
@@ -345,7 +354,7 @@ export default function RepairManagement() {
         </div>
       </div>
 
-      <div className="section-card">
+            <div className="section-card">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1 max-w-sm">
             <Search
@@ -368,11 +377,26 @@ export default function RepairManagement() {
                   setStatusFilter(status)
                   setPage(1)
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  statusFilter === status 
+                    ? 'bg-primary text-on-primary' 
+                    : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
+                }`}
               >
                 {status}
               </button>
             ))}
+          </div>
+          
+          {/* Pushed to the far right */}
+          <div className="ml-auto flex-shrink-0">
+            <DateRangeFilter
+              onApply={(from, to) => {
+                setDateFrom(from)
+                setDateTo(to)
+                setPage(1)
+              }}
+            />
           </div>
         </div>
       </div>
@@ -431,7 +455,7 @@ export default function RepairManagement() {
                       <tr
                         key={repair.repairId}
                         className="cursor-pointer"
-                        onClick={() => navigate(`/repairs/${repair.repairId}`)}
+                        onDoubleClick={() => navigate(`/repairs/${repair.repairId}`)}
                       >
                         <td>
                           <code className="text-secondary text-xs">{repair.id}</code>
@@ -452,8 +476,8 @@ export default function RepairManagement() {
                         </td>
                         <td><StatusBadge status={repair.status} /></td>
                         <td><StatusBadge status={repair.priority} /></td>
-                        <td className="text-xs text-on-surface-variant">
-                          {repair.expectedCompletion || '-'}
+                        <td className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
+                          {repair.expectedCompletion ? String(repair.expectedCompletion).split('T')[0] : '-'}
                         </td>
                         <td onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center gap-2">
