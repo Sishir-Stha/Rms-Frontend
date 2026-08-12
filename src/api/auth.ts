@@ -19,7 +19,7 @@ export interface LoginResponse {
   }
 }
 
-const API_BASE_URL = 'http://192.168.5.59/api/v1'
+const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
 
 export const login = async (credentials: LoginRequest): Promise<LoginResponse> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
