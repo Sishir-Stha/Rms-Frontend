@@ -33,7 +33,7 @@ export interface DeviceReportResponse {
   data: DeviceReport[]
 }
 
-const API_BASE_URL = 'http://localhost:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59/api/v1'
 
 export const getRepairsReport = async (): Promise<RepairsReportResponse> => {
   const response = await fetch(`${API_BASE_URL}/reports/repairs`, {
