@@ -51,7 +51,7 @@ export interface UpdateVendorResponse {
   }
 }
 
-const API_BASE_URL = 'http://localhost:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59/api/v1'
 
 export const getVendors = async (vendor_name: string = '', specialization: string = ''): Promise<GetVendorsResponse> => {
   const response = await fetch(`${API_BASE_URL}/vendors?vendor_name=${vendor_name}&specialization=${specialization}`, {

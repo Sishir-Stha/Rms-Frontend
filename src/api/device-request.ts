@@ -98,7 +98,7 @@ export interface DeleteDeviceRequestResponse {
   data: {}
 }
 
-const API_BASE_URL = 'http://localhost:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59/api/v1'
 
 export const getDeviceRequests = async (approval_status: string = '', device_type: string = ''): Promise<GetDeviceRequestsResponse> => {
   const response = await fetch(`${API_BASE_URL}/device-requests?approval_status=${approval_status}&device_type=${device_type}`, {
