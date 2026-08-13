@@ -260,7 +260,7 @@ export default function DeviceStockDetail() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">Destination</label>
-                <textarea value={form.destination} onChange={(e) => handleChange('destination', e.target.value)} rows={1} placeholder="eg. Information technology" className="input-field resize-none" />
+                <textarea value={form.destination} onChange={(e) => handleChange('destination', e.target.value)} rows={1} placeholder="" className="input-field resize-none" />
               </div>
 
               <div>

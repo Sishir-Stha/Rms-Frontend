@@ -549,6 +549,7 @@ export default function RepairManagement() {
         title="Create Repair"
         size="lg"
       >
+         <div className="max-h-[75vh] overflow-y-auto pr-2"> 
         {isLoadingCreateLookups ? (
           <div className="flex items-center justify-center min-h-[240px]">
             <div className="flex flex-col items-center gap-3">
@@ -573,9 +574,9 @@ export default function RepairManagement() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Device Name
                 </label>
                 <input
@@ -588,7 +589,7 @@ export default function RepairManagement() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Category
                 </label>
                 <select
@@ -610,7 +611,7 @@ export default function RepairManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Serial Number
                 </label>
                 <input
@@ -623,7 +624,7 @@ export default function RepairManagement() {
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Department
                 </label>
                 <select
@@ -645,7 +646,7 @@ export default function RepairManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Reported By
                 </label>
                 <select
@@ -667,7 +668,7 @@ export default function RepairManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Vendor
                 </label>
                 <select
@@ -689,7 +690,7 @@ export default function RepairManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Priority
                 </label>
                 <select
@@ -710,7 +711,7 @@ export default function RepairManagement() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Expected Completion
                 </label>
                 <input
@@ -726,7 +727,7 @@ export default function RepairManagement() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Issue Description
                 </label>
                 <textarea
@@ -740,7 +741,7 @@ export default function RepairManagement() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1 block">
                   Notes
                 </label>
                 <textarea
@@ -754,7 +755,7 @@ export default function RepairManagement() {
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-4">
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
@@ -771,8 +772,10 @@ export default function RepairManagement() {
                 {isCreating ? 'Creating...' : 'Create Repair'}
               </button>
             </div>
+            
           </>
         )}
+        </div>
       </Modal>
 
       <ConfirmDialog
@@ -783,6 +786,7 @@ export default function RepairManagement() {
         title="Delete Repair Ticket"
         message={`Are you sure you want to delete ${deleteTarget?.id ?? 'this repair'}? This cannot be undone.`}
       />
+      
     </div>
   )
 }

@@ -331,8 +331,8 @@ export default function DeviceStock() {
       </div>
 
       <div className="section-card overflow-hidden">
-        <div className="table-container">
-          <table className="data-table table-fixed w-full">
+        <div className="table-container overflow-x-auto">
+        <table className="data-table table-fixed w-full min-w-[1100px]">
             <thead>
               <tr className="border-b border-outline-variant/30">
                 <th className="w-[6%] whitespace-nowrap py-3 text-left">Code</th>
@@ -390,9 +390,9 @@ export default function DeviceStock() {
         </div>
       </div>
 
-            {/* 👇 REMOVED title="Create Device Stock Entry" from here */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} size="md">
-        <div className="space-y-5">
+    
+<Modal title="Create Device Stock Entry" isOpen={showModal} onClose={() => setShowModal(false)} size="lg">
+        <div className="space-y-3 max-h-[70vh] overflow-y-auto">
           <div>
             <h3 className="font-semibold text-base text-on-surface">Device Stock Details</h3>
           </div>
@@ -415,7 +415,7 @@ export default function DeviceStock() {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">Origin</label>
-              <textarea value={form.originSector} onChange={(e) => setForm({ ...form, originSector: e.target.value })} rows={1} placeholder="eg. Procurement" className="input-field resize-none" />
+              <textarea value={form.originSector} onChange={(e) => setForm({ ...form, originSector: e.target.value })} rows={1} placeholder=" " className="input-field resize-none" />
             </div>
 
             <div>
@@ -428,7 +428,7 @@ export default function DeviceStock() {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5 text-on-surface-variant">Destination</label>
-              <textarea value={form.destinationSector} onChange={(e) => setForm({ ...form, destinationSector: e.target.value })} rows={1} placeholder="eg. Information technology" className="input-field resize-none" />
+              <textarea value={form.destinationSector} onChange={(e) => setForm({ ...form, destinationSector: e.target.value })} rows={1} placeholder=" " className="input-field resize-none" />
             </div>
 
             <div>

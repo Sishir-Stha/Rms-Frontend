@@ -3,7 +3,7 @@ type UserEmail = string
 export interface UserAccessConfig {
   canCreateRequest: boolean
   allowedRoutes: string[]
-  canViewRequested: boolean      // <-- ADDED
+  canViewRequested: boolean
   canViewRecommended: boolean
   canViewRejected: boolean
   canViewFulfilled: boolean
@@ -16,17 +16,21 @@ const normalizeEmail = (email?: string | null) => email?.trim().toLowerCase() ??
 
 const REQUEST_VIEWER_ONLY_EMAILS = new Set<string>([])
 
-const LIMITED_DRAG_USERS = new Set<string>([
-  'ajita@yetiairlines.com',
-  'roshan@yetiairlines.com',
-  'aayush@yetiairlines.com',
-  'raj@yetiairlines.com',
-  'bhupal@yetiairlines.com',
-])
+const STANDARD_USER_ACCESS: UserAccessConfig = {
+  canCreateRequest: true,
+  allowedRoutes: ['*'],
+  canViewRequested: true,
+  canViewRecommended: true,
+  canViewRejected: true,
+  canViewFulfilled: true,
+  canDeleteRequest: false,
+  canEditDeviceDetails: true,
+  canEditRequesterInformation: false,
+}
 
 const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
   'anjana@yetiairlines.com': {
-    canCreateRequest: true,
+    canCreateRequest: false,
     allowedRoutes: ['/', '/requests', '/request-kanban', '/reports'],
     canViewRequested: false,
     canViewRecommended: false,
@@ -39,10 +43,10 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
   'sudharshan@yetiairlines.com': {
     canCreateRequest: false,
     allowedRoutes: ['/', '/requests', '/request-kanban', '/reports'],
-    canViewRequested: false,   // <-- RESTRICTED
+    canViewRequested: false,
     canViewRecommended: true,
     canViewRejected: true,
-    canViewFulfilled: false,   // <-- RESTRICTED
+    canViewFulfilled: false,
     canDeleteRequest: false,
     canEditDeviceDetails: true,
     canEditRequesterInformation: false,
@@ -58,60 +62,17 @@ const USER_ACCESS: Record<UserEmail, UserAccessConfig> = {
     canEditDeviceDetails: true,
     canEditRequesterInformation: false,
   },
-  'ajita@yetiairlines.com': {
+  
+  'sishir@yetiairlines.com': {
     canCreateRequest: true,
     allowedRoutes: ['*'],
     canViewRequested: true,
     canViewRecommended: true,
     canViewRejected: true,
     canViewFulfilled: true,
-    canDeleteRequest: false,
+    canDeleteRequest: true,              
     canEditDeviceDetails: true,
-    canEditRequesterInformation: false,
-  },
-  'roshan@yetiairlines.com': {
-    canCreateRequest: true,
-    allowedRoutes: ['*'],
-    canViewRequested: true,
-    canViewRecommended: true,
-    canViewRejected: true,
-    canViewFulfilled: true,
-    canDeleteRequest: false,
-    canEditDeviceDetails: true,
-    canEditRequesterInformation: false,
-  },
-  'aayush@yetiairlines.com': {
-    canCreateRequest: true,
-    allowedRoutes: ['*'],
-    canViewRequested: true,
-    canViewRecommended: true,
-    canViewRejected: true,
-    canViewFulfilled: true,
-    canDeleteRequest: false,
-    canEditDeviceDetails: true,
-    canEditRequesterInformation: false,
-  },
-  'raj@yetiairlines.com': {
-    canCreateRequest: true,
-    allowedRoutes: ['*'],
-    canViewRequested: true,
-    canViewRecommended: true,
-    canViewRejected: true,
-    canViewFulfilled: true,
-    canDeleteRequest: false,
-    canEditDeviceDetails: true,
-    canEditRequesterInformation: false,
-  },
-  'bhupal@yetiairlines.com': {
-    canCreateRequest: true,
-    allowedRoutes: ['*'],
-    canViewRequested: true,
-    canViewRecommended: true,
-    canViewRejected: true,
-    canViewFulfilled: true,
-    canDeleteRequest: false,
-    canEditDeviceDetails: true,
-    canEditRequesterInformation: false,
+    canEditRequesterInformation: true,  
   },
 }
 
@@ -121,17 +82,9 @@ export const getUserAccess = (email?: string | null) => {
 
   if (!config) {
     return {
-      canCreateRequest: true,
-      allowedRoutes: ['*'],
-      canViewRequested: true,    // <-- ADDED
-      canViewRecommended: true,
-      canViewRejected: true,
-      canViewFulfilled: true,
-      canDeleteRequest: true,
-      canEditDeviceDetails: true,
-      canEditRequesterInformation: true,
+      ...STANDARD_USER_ACCESS,
       isRestricted: false,
-      isRequestViewerOnly: false,
+      isRequestViewerOnly: REQUEST_VIEWER_ONLY_EMAILS.has(key),
     }
   }
 
@@ -162,17 +115,16 @@ export const canManageKanban = (email?: string | null) => {
 export const canMoveKanbanStatus = (email?: string | null, from?: string, to?: string) => {
   const user = normalizeEmail(email)
 
+  if (REQUEST_VIEWER_ONLY_EMAILS.has(user)) return false
+
+  if (user === 'sishir@yetiairlines.com') {
+    return true 
+  }
+
   if (user === 'anjana@yetiairlines.com') {
     const allowed: Array<[string, string]> = [['Approved', 'Fulfilled'], ['Fulfilled', 'Approved']]
     return allowed.some(([f, t]) => f === from && t === to)
   }
-
-  if (LIMITED_DRAG_USERS.has(user)) {
-    const allowed: Array<[string, string]> = [['Approved', 'Fulfilled'], ['Fulfilled', 'Approved']]
-    return allowed.some(([f, t]) => f === from && t === to)
-  }
-
-  if (REQUEST_VIEWER_ONLY_EMAILS.has(user)) return false
 
   if (user === 'umesh.acharya@yetiairlines.com') {
     const allowed: Array<[string, string]> = [
@@ -192,11 +144,12 @@ export const canMoveKanbanStatus = (email?: string | null, from?: string, to?: s
     return allowed.some(([f, t]) => f === from && t === to)
   }
 
-  return true
+  const defaultAllowed: Array<[string, string]> = [['Approved', 'Fulfilled'], ['Fulfilled', 'Approved']]
+  return defaultAllowed.some(([f, t]) => f === from && t === to)
 }
 
-// ── Helpers ──
-export const canViewRequestedStatus = (email?: string | null) => getUserAccess(email).canViewRequested // <-- ADDED
+
+export const canViewRequestedStatus = (email?: string | null) => getUserAccess(email).canViewRequested
 export const canViewRecommendedStatus = (email?: string | null) => getUserAccess(email).canViewRecommended
 export const canViewRejectedStatus = (email?: string | null) => getUserAccess(email).canViewRejected
 export const canViewFulfilledStatus = (email?: string | null) => getUserAccess(email).canViewFulfilled
