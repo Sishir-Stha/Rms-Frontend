@@ -160,12 +160,24 @@ export default function DeviceRequests() {
       .filter((request) => {
         const matchesStatus = statusFilter === 'All' || request.approvalStatus === statusFilter
         const matchesDate = (() => {
-          if (!dateFrom && !dateTo) return true
-          const requestDate = request.requestDate
-          if (dateFrom && requestDate < dateFrom) return false
-          if (dateTo && requestDate > dateTo) return false
-          return true
-        })()
+  if (!dateFrom && !dateTo) return true;
+  
+  // Collect all relevant dates to find the most recent activity
+  const possibleDates = [
+    request.requestDate,
+    request.updatedAt,   // Checks when the entry was last updated/dragged
+    request.approvalDate // Checks when a decision was made
+  ].filter(Boolean).map(d => new Date(d).getTime());
+
+  // Find the absolute latest date among them
+  const latestDate = new Date(Math.max(...possibleDates));
+
+  // Apply the filter against the latest date
+  if (dateFrom && latestDate < new Date(dateFrom)) return false;
+  if (dateTo && latestDate > new Date(dateTo)) return false;
+  
+  return true;
+})();
         const matchesSearch =
           query === '' ||
           request.id.toLowerCase().includes(query) ||
@@ -175,15 +187,16 @@ export default function DeviceRequests() {
           request.brand.toLowerCase().includes(query)
         return matchesStatus && matchesDate && matchesSearch
       })
-      .sort((a, b) => a.requestId - b.requestId)
+      .sort((a, b) => b.requestId - a.requestId)
   }, [requests, search, statusFilter, dateFrom, dateTo])
 
   const paginatedRequests = filteredRequests
 
-  const resetCreateForm = () => {
+    const resetCreateForm = () => {
     setForm({
       ...emptyForm,
-      requestedById: users[0]?.user_id ?? 0,
+      // Prioritize the logged-in user's ID, fallback to the first user in the list
+      requestedById: currentUser?.id ?? users[0]?.user_id ?? 0,
       departmentId: departments[0]?.department_id ?? 0,
       deviceType: categories[0]?.category_name ?? '',
     })
@@ -242,8 +255,8 @@ export default function DeviceRequests() {
       setShowModal(false)
       return
     }
-    if (!form.requestedById || !form.departmentId || !form.requestedFor.trim() || !form.deviceType.trim()) {
-      showToast('Requester, department, requested for, and device type are required', 'error')
+    if (!form.requestedById || !form.departmentId || !form.requestedFor.trim() || !form.deviceType.trim() || !form.reason.trim()) {
+      showToast('Requester, department, requested for, device type, and reason are required', 'error')
       return
     }
     setIsSubmitting(true)
@@ -500,8 +513,8 @@ export default function DeviceRequests() {
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">Reason</label>
-              <textarea value={form.reason} onChange={(event) => setForm((currentForm) => ({ ...currentForm, reason: event.target.value }))} rows={2} placeholder="Why is this device needed?" className="input-field resize-none" />
+              <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">Reason <span className="text-red-500">*</span></label>
+<textarea required value={form.reason} onChange={(event) => setForm((currentForm) => ({ ...currentForm, reason: event.target.value }))} rows={2} placeholder="Why is this device needed?" className="input-field resize-none" />
             </div>
             {lookupErrorMessage ? <p className="text-xs sm:col-span-2" style={{ color: 'var(--error-text)' }}>{lookupErrorMessage}</p> : null}
           </div>
