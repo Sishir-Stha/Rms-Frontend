@@ -16,6 +16,37 @@ import type { DeviceRequestListItem } from '../types/device-request.types'
 import { formatDeviceRequestStatus } from '../utils/device-request-status'
 import { canManageKanban, canMoveKanbanStatus, getUserAccess } from '../utils/access-control'
 
+const getLocalDateString = (date: Date | string | undefined | null): string => {
+  if (!date) return ''
+  
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (match) {
+      return match[1]
+    }
+    
+    const d = new Date(trimmed)
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+    return ''
+  }
+  
+  if (date instanceof Date && !isNaN(date.getTime())) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  return ''
+}
+
 interface KanbanColumn {
   id: RequestApprovalStatus
   label: string
@@ -58,13 +89,14 @@ export default function DeviceRequestKanban() {
   const [clickTimeout, setClickTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
   
   const [filterMode, setFilterMode] = useState<'default' | 'custom' | 'all'>('default')
+  
   const getOneMonthAgo = () => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return d.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
-};
+    const d = new Date()
+    d.setMonth(d.getMonth() - 1)
+    return getLocalDateString(d)
+  }
 
-const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
+  const [dateFrom, setDateFrom] = useState(getOneMonthAgo())
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
@@ -95,12 +127,18 @@ const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
         const today = new Date()
         const oneMonthAgo = new Date(today)
         oneMonthAgo.setMonth(today.getMonth() - 1)
-        const oneMonthAgoStr = oneMonthAgo.toISOString().split('T')[0]
+        const oneMonthAgoStr = getLocalDateString(oneMonthAgo)
 
         const filteredCards = requestCards.filter((card) => {
-          const cardDate = card.requestDate ? String(card.requestDate).split('T')[0] : ''
-
           if (filterMode === 'all') return true
+
+          // Determine relevant date: Decision date for terminal states, else request date
+          const decisionDate = getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
+          const requestDate = getLocalDateString(card.requestDate)
+          
+          const cardDate = (card.approvalStatus === 'Approved' || card.approvalStatus === 'Rejected' || card.approvalStatus === 'Fulfilled')
+            ? decisionDate
+            : requestDate
 
           if (filterMode === 'custom' && (dateFrom || dateTo)) {
             if (dateFrom && cardDate < dateFrom) return false
@@ -110,7 +148,7 @@ const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
 
           if (filterMode === 'default') {
             if (card.approvalStatus === 'Approved' || card.approvalStatus === 'Rejected' || card.approvalStatus === 'Fulfilled') {
-              if (cardDate < oneMonthAgoStr) return false
+              if (decisionDate && decisionDate < oneMonthAgoStr) return false
             }
           }
 
@@ -178,11 +216,14 @@ const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
     }
 
     const previousCards = cards
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Date()
+    const todayStr = getLocalDateString(today)
+    
+    // Decision date is updated to today when moved
     const optimisticCard: DeviceRequestListItem =
       col === 'Approved' || col === 'Rejected'
-        ? { ...targetCard, approvalStatus: col, approvedById: currentUser?.id ?? targetCard.approvedById, approvedBy: currentUser?.name ?? targetCard.approvedBy, approvalDate: today }
-        : { ...targetCard, approvalStatus: col, approvedById: col === 'Fulfilled' ? targetCard.approvedById : null, approvedBy: col === 'Fulfilled' ? targetCard.approvedBy : null, approvalDate: col === 'Fulfilled' ? targetCard.approvalDate : null }
+        ? { ...targetCard, approvalStatus: col, approvedById: currentUser?.id ?? targetCard.approvedById, approvedBy: currentUser?.name ?? targetCard.approvedBy, approvalDate: todayStr }
+        : { ...targetCard, approvalStatus: col, approvedById: col === 'Fulfilled' ? targetCard.approvedById : null, approvedBy: col === 'Fulfilled' ? targetCard.approvedBy : null, approvalDate: col === 'Fulfilled' ? todayStr : null }
 
     setCards((currentCards) => currentCards.map((card) => card.requestId === requestId ? optimisticCard : card))
 
@@ -333,7 +374,9 @@ const [dateFrom, setDateFrom] = useState(getOneMonthAgo());
                         <p className="text-xs font-medium" style={{ color: 'var(--on-surface)' }}>{card.requestedBy}</p>
                         <p className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>{card.department}</p>
                       </div>
-                      <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>{card.requestDate}</span>
+                      <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
+                        {getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)}
+                      </span>
                     </div>
                   </div>
                 ))}
