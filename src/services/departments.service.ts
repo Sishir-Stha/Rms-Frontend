@@ -1,6 +1,6 @@
 import type { RepairDepartmentOption } from '../types/repair.types'
 
-const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
+const API_BASE_URL = 'http://localhost:4000/api/v1'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
