@@ -4,30 +4,21 @@ export interface DeviceRequestApiItem {
   request_id: number
   requested_by: number
   requested_for?: string | null
-
   requester_name: string
-
   department_id: number
   department_name: string
-
   device_type: string
   brand: string
   reason: string
   quantity: number
   priority: string
-
   request_date: string
-
-  recommended_date: string | null
-
   approval_status: string | null
   approved_by: number | null
   approver_name: string | null
-
   approval_date: string | null
-
-  fulfilled_date: string | null
-
+  recommended_date?: string | null   // Added
+  fulfilled_date?: string | null     // Added
   created_at: string
   updated_at: string
 }
@@ -43,7 +34,9 @@ export interface DeviceRequestApiResponse {
 export interface DeviceRequestDetailApiResponse {
   success: boolean
   message: string
-  data: DeviceRequestApiItem
+  data: {
+    result: DeviceRequestApiItem  // Ensures .result exists
+  }
 }
 
 export interface FetchDeviceRequestsFilters {
@@ -78,10 +71,7 @@ export interface UpdateDeviceRequestPayload {
 }
 
 export interface ApproveDeviceRequestPayload {
-  approval_status: Extract<
-    RequestApprovalStatus,
-    'Approved' | 'Rejected'
-  >
+  approval_status: Extract<RequestApprovalStatus, 'Approved' | 'Rejected' | 'Fulfilled' | 'Pending'>
   approved_by: number
 }
 
@@ -104,33 +94,27 @@ export interface ApproveDeviceRequestApiResponse {
 export interface DeviceRequestListItem {
   requestId: number
   id: string
-
   requestedById: number
   requestedBy: string
   requestedFor: string
-
   departmentId: number
   department: string
-
   deviceType: string
   brand: string
   reason: string
   quantity: number
   priority: Priority
-
   requestDate: string
-  recommendedDate: string | null
-
+  recommendedDate: string | null    // Added
   approvalStatus: RequestApprovalStatus
-
   approvedById: number | null
   approvedBy: string | null
   approvalDate: string | null
-
-  fulfilledDate: string | null
-
-  createdAt: string
-  updatedAt: string
+  fulfilledDate: string | null      // Added
+  createdAt: string                 // Added
+  updatedAt: string                 // Added
 }
 
-export interface DeviceRequestDetailItem extends DeviceRequestListItem {}
+export interface DeviceRequestDetailItem extends DeviceRequestListItem {
+  // createdAt and updatedAt are now inherited from DeviceRequestListItem
+}

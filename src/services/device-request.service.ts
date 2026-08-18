@@ -12,7 +12,7 @@ import type {
   UpdateDeviceRequestPayload,
 } from '../types/device-request.types'
 
-const API_BASE_URL = 'http://localhost:4000/api/v1'
+const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
 const LOAD_DEVICE_REQUESTS_ERROR_MESSAGE = 'Unable to load device requests right now.'
 const LOAD_DEVICE_REQUEST_DETAIL_ERROR_MESSAGE =
   'Unable to load device request detail right now.'
@@ -238,10 +238,14 @@ const mapDeviceRequestItem = (request: DeviceRequestApiItem): DeviceRequestListI
     quantity: request.quantity,
     priority: normalizePriority(request.priority),
     requestDate: request.request_date.slice(0, 10),
+    recommendedDate: request.recommended_date ? request.recommended_date.slice(0, 10) : null,
     approvalStatus: normalizedStatus,
     approvedById: request.approved_by,
     approvedBy: request.approver_name,
     approvalDate: request.approval_date ? request.approval_date.slice(0, 10) : null,
+    fulfilledDate: request.fulfilled_date ? request.fulfilled_date.slice(0, 10) : null,
+    createdAt: request.created_at,
+    updatedAt: request.updated_at,
   }
 }
 
@@ -249,8 +253,6 @@ const mapDeviceRequestDetailItem = (
   request: DeviceRequestApiItem,
 ): DeviceRequestDetailItem => ({
   ...mapDeviceRequestItem(request),
-  createdAt: request.created_at,
-  updatedAt: request.updated_at,
 })
 
 const parseJsonResponse = async (response: Response): Promise<unknown> => {
