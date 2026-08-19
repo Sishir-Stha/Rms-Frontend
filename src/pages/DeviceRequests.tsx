@@ -1,6 +1,6 @@
 import DateRangeFilter from '../components/DateRangeFilter'
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react'
-import { CheckCircle, ChevronLeft, ChevronRight, Edit2, Plus, Search, Trash2, XCircle } from 'lucide-react'
+import { CheckCircle, Edit2, Plus, Search, Trash2, XCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -26,8 +26,13 @@ import {
   canViewRecommendedStatus,
   canViewRejectedStatus,
   canViewFulfilledStatus,
-  canViewRequestedStatus, // <-- ADDED
+  canViewRequestedStatus,
+  canViewApprovedStatus,
   canDeleteDeviceRequest,
+  canFulfillRequestStatus,
+  canActOnRequested,
+  canActOnRecommended,
+  getRequestedActionLabel,
 } from '../utils/access-control'
 import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
@@ -53,25 +58,13 @@ type StatusFilter = 'All' | RequestApprovalStatus
 const STATUSES: StatusFilter[] = ['All', 'Requested', 'Pending', 'Approved', 'Rejected', 'Fulfilled']
 const SUMMARY_STATUSES: RequestApprovalStatus[] = ['Requested', 'Pending', 'Approved', 'Rejected', 'Fulfilled']
 const PRIORITIES: Priority[] = ['Critical', 'High', 'Medium', 'Low']
-const PAGE_SIZE = 8
 
 const emptyForm: DeviceRequestFormData = {
-  requestedById: 0,
-  requestedFor: '',
-  departmentId: 0,
-  deviceType: '',
-  brand: '',
-  reason: '',
-  quantity: 1,
-  priority: 'Medium',
+  requestedById: 0, requestedFor: '', departmentId: 0, deviceType: '', brand: '', reason: '', quantity: 1, priority: 'Medium',
 }
 
 const SUMMARY_COLORS: Record<RequestApprovalStatus, string> = {
-  Requested: '#bac5ee',
-  Pending: '#f59e0b',
-  Approved: '#62df7d',
-  Rejected: '#ffb4ab',
-  Fulfilled: '#0891b2',
+  Requested: '#bac5ee', Pending: '#f59e0b', Approved: '#62df7d', Rejected: '#ffb4ab', Fulfilled: '#0891b2',
 }
 
 const getEmptyMessage = (statusFilter: StatusFilter): string =>
@@ -89,8 +82,15 @@ export default function DeviceRequests() {
   const canViewRecommended = currentUser?.email ? canViewRecommendedStatus(currentUser.email) : true
   const canViewRejected = currentUser?.email ? canViewRejectedStatus(currentUser.email) : true
   const canViewFulfilled = currentUser?.email ? canViewFulfilledStatus(currentUser.email) : true
-  const canViewRequested = currentUser?.email ? canViewRequestedStatus(currentUser.email) : true // <-- ADDED
+  const canViewRequested = currentUser?.email ? canViewRequestedStatus(currentUser.email) : true
+  const canViewApproved = currentUser?.email ? canViewApprovedStatus(currentUser.email) : true
   const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : true
+  const canFulfillRequest = currentUser?.email ? canFulfillRequestStatus(currentUser.email) : false
+
+  // STRICT ACTION PERMISSIONS
+  const canActOnReq = currentUser?.email ? canActOnRequested(currentUser.email) : false
+  const canActOnRec = currentUser?.email ? canActOnRecommended(currentUser.email) : false
+  const requestedActionLabel = currentUser?.email ? getRequestedActionLabel(currentUser.email) : 'Approve'
 
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
@@ -106,7 +106,6 @@ export default function DeviceRequests() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lookupErrorMessage, setLookupErrorMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -158,48 +157,40 @@ export default function DeviceRequests() {
     const query = search.trim().toLowerCase()
     return requests
       .filter((request) => {
+        if (request.approvalStatus === 'Requested' && !canViewRequested) return false
+        if (request.approvalStatus === 'Pending' && !canViewRecommended) return false
+        if (request.approvalStatus === 'Approved' && !canViewApproved) return false
+        if (request.approvalStatus === 'Rejected' && !canViewRejected) return false
+        if (request.approvalStatus === 'Fulfilled' && !canViewFulfilled) return false
+
         const matchesStatus = statusFilter === 'All' || request.approvalStatus === statusFilter
         const matchesDate = (() => {
-  if (!dateFrom && !dateTo) return true;
-  
-  // Collect all relevant dates to find the most recent activity
-  const possibleDates = [
-    request.requestDate,
-    request.updatedAt,   // Checks when the entry was last updated/dragged
-    request.approvalDate // Checks when a decision was made
-  ].filter(Boolean).map(d => new Date(d).getTime());
-
-  // Find the absolute latest date among them
-  const latestDate = new Date(Math.max(...possibleDates));
-
-  // Apply the filter against the latest date
-  if (dateFrom && latestDate < new Date(dateFrom)) return false;
-  if (dateTo && latestDate > new Date(dateTo)) return false;
-  
-  return true;
-})();
-        const matchesSearch =
-          query === '' ||
-          request.id.toLowerCase().includes(query) ||
-          request.requestedBy.toLowerCase().includes(query) ||
-          request.department.toLowerCase().includes(query) ||
-          request.deviceType.toLowerCase().includes(query) ||
-          request.brand.toLowerCase().includes(query)
+          if (!dateFrom && !dateTo) return true
+          const possibleDates = [request.requestDate, request.recommendedDate, request.approvalDate, request.fulfilledDate]
+            .filter((date): date is string => Boolean(date))
+            .map((date) => new Date(date).getTime())
+            .filter((time) => !Number.isNaN(time))
+          if (possibleDates.length === 0) return true
+          const latestTimestamp = Math.max(...possibleDates)
+          const latestDate = new Date(latestTimestamp)
+          const year = latestDate.getFullYear()
+          const month = String(latestDate.getMonth() + 1).padStart(2, '0')
+          const day = String(latestDate.getDate()).padStart(2, '0')
+          const latestDateString = `${year}-${month}-${day}`
+          if (dateFrom && latestDateString < dateFrom) return false
+          if (dateTo && latestDateString > dateTo) return false
+          return true
+        })()
+        const matchesSearch = query === '' || request.id.toLowerCase().includes(query) || request.requestedBy.toLowerCase().includes(query) || request.department.toLowerCase().includes(query) || request.deviceType.toLowerCase().includes(query) || request.brand.toLowerCase().includes(query)
         return matchesStatus && matchesDate && matchesSearch
       })
       .sort((a, b) => b.requestId - a.requestId)
-  }, [requests, search, statusFilter, dateFrom, dateTo])
+  }, [requests, search, statusFilter, dateFrom, dateTo, canViewRequested, canViewRecommended, canViewApproved, canViewRejected, canViewFulfilled])
 
   const paginatedRequests = filteredRequests
 
-    const resetCreateForm = () => {
-    setForm({
-      ...emptyForm,
-      // Prioritize the logged-in user's ID, fallback to the first user in the list
-      requestedById: currentUser?.id ?? users[0]?.user_id ?? 0,
-      departmentId: departments[0]?.department_id ?? 0,
-      deviceType: categories[0]?.category_name ?? '',
-    })
+  const resetCreateForm = () => {
+    setForm({ ...emptyForm, requestedById: currentUser?.id ?? users[0]?.user_id ?? 0, departmentId: departments[0]?.department_id ?? 0, deviceType: categories[0]?.category_name ?? '' })
   }
 
   const openCreateModal = () => {
@@ -211,21 +202,21 @@ export default function DeviceRequests() {
     setShowModal(true)
   }
 
-  const handleApprove = async (requestId: number) => {
+  const handleApprove = async (requestId: number, statusToSet: 'Approved' | 'Pending' = 'Approved') => {
     if (!currentUser) {
-      showToast('You must be logged in to approve requests', 'error')
+      showToast(`You must be logged in to ${statusToSet === 'Pending' ? 'recommend' : 'approve'} requests`, 'error')
       return
     }
     try {
-      const updatedRequest = await approveDeviceRequestById(requestId, { approval_status: 'Approved', approved_by: currentUser.id })
+      const updatedRequest = await approveDeviceRequestById(requestId, { approval_status: statusToSet, approved_by: currentUser.id })
       if (updatedRequest) {
         setRequests((previousRequests) => previousRequests.map((request) => request.requestId === requestId ? updatedRequest : request))
       } else {
         await refreshRequests()
       }
-      showToast('Request approved', 'success')
+      showToast(statusToSet === 'Pending' ? 'Request recommended' : 'Request approved', 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Failed to approve request.', 'error')
+      showToast(error instanceof Error ? error.message : `Failed to ${statusToSet === 'Pending' ? 'recommend' : 'approve'} request.`, 'error')
     }
   }
 
@@ -249,6 +240,24 @@ export default function DeviceRequests() {
     }
   }
 
+  const handleFulfill = async (requestId: number) => {
+    if (!currentUser) {
+      showToast('You must be logged in to fulfill requests', 'error')
+      return
+    }
+    try {
+      const updatedRequest = await approveDeviceRequestById(requestId, { approval_status: 'Fulfilled', approved_by: currentUser.id })
+      if (updatedRequest) {
+        setRequests((previousRequests) => previousRequests.map((request) => request.requestId === requestId ? updatedRequest : request))
+      } else {
+        await refreshRequests()
+      }
+      showToast('Request fulfilled successfully', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to fulfill request.', 'error')
+    }
+  }
+
   const handleCreate = async () => {
     if (!canCreateDeviceRequest) {
       showToast('You do not have permission to create requests', 'error')
@@ -261,16 +270,7 @@ export default function DeviceRequests() {
     }
     setIsSubmitting(true)
     try {
-      await createDeviceRequestEntry({
-        requested_by: form.requestedById,
-        department_id: form.departmentId,
-        device_type: form.deviceType.trim(),
-        brand: form.brand.trim(),
-        reason: form.reason.trim(),
-        quantity: form.quantity,
-        priority: form.priority,
-        requested_for: form.requestedFor.trim(),
-      })
+      await createDeviceRequestEntry({ requested_by: form.requestedById, department_id: form.departmentId, device_type: form.deviceType.trim(), brand: form.brand.trim(), reason: form.reason.trim(), quantity: form.quantity, priority: form.priority, requested_for: form.requestedFor.trim() })
       await refreshRequests()
       showToast('Device request submitted', 'success')
       setShowModal(false)
@@ -294,36 +294,24 @@ export default function DeviceRequests() {
     }
   }
 
-  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSearch(event.target.value)
-  }
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)
 
-  const shouldHideApproveReject = currentUser?.email
-    ? ['bhupal@yetiairlines.com', 'umesh.acharya@yetiairlines.com', 'ajita@yetiairlines.com', 'roshan@yetiairlines.com', 'aayush@yetiairlines.com', 'raj@yetiairlines.com'].includes(currentUser.email.trim().toLowerCase())
-    : false
-
-    // Calculate exactly which summary statuses are visible for this user
   const visibleSummaryStatuses = SUMMARY_STATUSES.filter((status) => {
     if (status === 'Requested' && !canViewRequested) return false
     if (status === 'Pending' && !canViewRecommended) return false
+    if (status === 'Approved' && !canViewApproved) return false
     if (status === 'Rejected' && !canViewRejected) return false
     if (status === 'Fulfilled' && !canViewFulfilled) return false
     return true
   })
 
-  // Dynamically assign the perfect grid class based on the count
-  const summaryGridClass = 
-    visibleSummaryStatuses.length === 3 ? 'grid-cols-1 sm:grid-cols-3' :
-    visibleSummaryStatuses.length === 4 ? 'grid-cols-2 sm:grid-cols-4' :
-    'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+  const summaryGridClass = visibleSummaryStatuses.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : visibleSummaryStatuses.length === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
 
   if (isLoading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center" style={{ minHeight: '60vh' }}>
         <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <p className="text-sm mt-4" style={{ color: 'var(--muted)' }}>
-          Loading device requests...
-        </p>
+        <p className="text-sm mt-4" style={{ color: 'var(--muted)' }}>Loading device requests...</p>
       </div>
     )
   }
@@ -342,7 +330,6 @@ export default function DeviceRequests() {
         )}
       </div>
 
-            {/* Dynamic Grid: Perfectly fits 3, 4, or 5 cards */}
       <div className={`grid ${summaryGridClass} gap-3`}>
         {visibleSummaryStatuses.map((status) => (
           <div key={status} className="section-card text-center py-3">
@@ -354,50 +341,28 @@ export default function DeviceRequests() {
         ))}
       </div>
 
-            <div className="section-card">
+      <div className="section-card">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1 max-w-sm">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
-            />
-            <input
-              value={search}
-              onChange={handleSearchChange}
-              placeholder="Search requester, department, device..."
-              className="input-field pl-9 py-2.5 w-full"
-            />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <input value={search} onChange={handleSearchChange} placeholder="Search requester, department, device..." className="input-field pl-9 py-2.5 w-full" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {STATUSES.filter((status) => {
               if (status === 'Requested' && !canViewRequested) return false
               if (status === 'Pending' && !canViewRecommended) return false
+              if (status === 'Approved' && !canViewApproved) return false
               if (status === 'Rejected' && !canViewRejected) return false
               if (status === 'Fulfilled' && !canViewFulfilled) return false
               return true
             }).map((status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  statusFilter === status
-                    ? 'bg-primary text-on-primary'
-                    : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
+              <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}>
                 {formatDeviceRequestStatus(status)}
               </button>
             ))}
           </div>
-          
-          {/* Pushed to the far right */}
           <div className="ml-auto flex-shrink-0">
-            <DateRangeFilter
-              onApply={(from, to) => {
-                setDateFrom(from)
-                setDateTo(to)
-              }}
-            />
+            <DateRangeFilter onApply={(from, to) => { setDateFrom(from); setDateTo(to) }} />
           </div>
         </div>
       </div>
@@ -413,57 +378,68 @@ export default function DeviceRequests() {
         <div className="table-container">
           <table className="data-table">
             <thead>
-              <tr>
-                <th>ID</th><th>Requested By</th><th>Department</th><th>Device</th><th>Qty</th><th>Priority</th><th>Status</th><th>Date</th><th>Actions</th>
-              </tr>
+              <tr><th>ID</th><th>Requested By</th><th>Department</th><th>Device</th><th>Qty</th><th>Priority</th><th>Status</th><th>Date</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {paginatedRequests.length === 0 ? (
                 <tr><td colSpan={9} className="text-center py-12 text-on-surface-variant">{getEmptyMessage(statusFilter)}</td></tr>
               ) : (
-                filteredRequests.map((request) => {
-                  const canReview = request.approvalStatus === 'Requested' || request.approvalStatus === 'Pending'
-                  return (
-                    <tr key={request.requestId} className="cursor-pointer" onDoubleClick={() => navigate(`/requests/${request.requestId}`)}>
-                      <td onClick={(event) => event.stopPropagation()}><code className="text-secondary text-xs">{request.id}</code></td>
-                      <td><span className="text-sm font-medium text-on-surface">{request.requestedBy}</span></td>
-                      <td><span className="text-sm text-on-surface-variant">{request.department}</span></td>
-                      <td>
-                        <div>
-                          <p className="text-sm font-medium text-on-surface">{request.deviceType}</p>
-                          <p className="text-xs text-on-surface-variant">{request.brand || '-'}</p>
+                paginatedRequests.map((request) => (
+                  <tr key={request.requestId} className="cursor-pointer" onDoubleClick={() => navigate(`/requests/${request.requestId}`)}>
+                    <td onClick={(event) => event.stopPropagation()}><code className="text-secondary text-xs">{request.id}</code></td>
+                    <td><span className="text-sm font-medium text-on-surface">{request.requestedBy}</span></td>
+                    <td><span className="text-sm text-on-surface-variant">{request.department}</span></td>
+                    <td><div><p className="text-sm font-medium text-on-surface">{request.deviceType}</p><p className="text-xs text-on-surface-variant">{request.brand || '-'}</p></div></td>
+                    <td className="text-sm text-on-surface-variant">{request.quantity}</td>
+                    <td onClick={(event) => event.stopPropagation()}><StatusBadge status={request.priority} /></td>
+                    <td onClick={(event) => event.stopPropagation()}><StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} /></td>
+                    <td className="text-xs whitespace-nowrap" style={{ color: 'var(--muted)' }} onClick={(event) => event.stopPropagation()}>{request.requestDate}</td>
+                    <td onClick={(event) => event.stopPropagation()}>
+                      {/* STRICT CHECK: Only show Approve/Reject if explicitly allowed for this specific status */}
+                      {((request.approvalStatus === 'Requested' && canActOnReq) || (request.approvalStatus === 'Pending' && canActOnRec)) ? (
+                        <div className="flex items-center gap-1.5">
+                          {!isRestrictedUserFlag && (
+                            <>
+                              <button onClick={() => {
+                                const targetStatus = request.approvalStatus === 'Requested' && requestedActionLabel === 'Recommend' ? 'Pending' : 'Approved'
+                                void handleApprove(request.requestId, targetStatus)
+                              }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--success-text)', background: 'var(--success-bg)' }}>
+                                <CheckCircle size={12} /> {request.approvalStatus === 'Requested' ? requestedActionLabel : 'Approve'}
+                              </button>
+                              <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'reject' })} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}>
+                                <XCircle size={12} /> Reject
+                              </button>
+                            </>
+                          )}
+                          <button onClick={() => navigate(`/requests/${request.requestId}`)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--primary)', background: 'var(--primary-lighter)' }}>
+                            <Edit2 size={11} /> View
+                          </button>
+                          {canDeleteRequest && (
+                            <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'delete' })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}>
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          )}
                         </div>
-                      </td>
-                      <td className="text-sm text-on-surface-variant">{request.quantity}</td>
-                      <td onClick={(event) => event.stopPropagation()}><StatusBadge status={request.priority} /></td>
-                      <td onClick={(event) => event.stopPropagation()}><StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} /></td>
-                      <td className="text-xs whitespace-nowrap" style={{ color: 'var(--muted)' }} onClick={(event) => event.stopPropagation()}>{request.requestDate}</td>
-                      <td onClick={(event) => event.stopPropagation()}>
-                        {canReview ? (
-                          <div className="flex items-center gap-1.5">
-                            {!isRestrictedUserFlag && !shouldHideApproveReject && (
-                              <>
-                                <button onClick={() => void handleApprove(request.requestId)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--success-text)', background: 'var(--success-bg)' }}><CheckCircle size={12} /> Approve</button>
-                                <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'reject' })} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}><XCircle size={12} /> Reject</button>
-                              </>
-                            )}
-                            <button onClick={() => navigate(`/requests/${request.requestId}`)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--primary)', background: 'var(--primary-lighter)' }}><Edit2 size={11} /> View</button>
-                            {canDeleteRequest && (
-                              <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'delete' })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}><Trash2 size={12} /> Delete</button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => navigate(`/requests/${request.requestId}`)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--primary)', background: 'var(--primary-lighter)' }}><Edit2 size={11} /> View</button>
-                            {canDeleteRequest && (
-                              <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'delete' })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}><Trash2 size={11} /> Delete</button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          {canFulfillRequest && request.approvalStatus === 'Approved' && (
+                            <button onClick={() => void handleFulfill(request.requestId)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--success-text)', background: 'var(--success-bg)' }}>
+                              <CheckCircle size={12} /> Fulfill
+                            </button>
+                          )}
+                          <button onClick={() => navigate(`/requests/${request.requestId}`)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--primary)', background: 'var(--primary-lighter)' }}>
+                            <Edit2 size={11} /> View
+                          </button>
+                          {canDeleteRequest && (
+                            <button onClick={() => setConfirm({ requestId: request.requestId, requestLabel: request.id, action: 'delete' })} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold" style={{ color: 'var(--error-text)', background: 'var(--error-bg)' }}>
+                              <Trash2 size={11} /> Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -514,7 +490,7 @@ export default function DeviceRequests() {
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5 block">Reason <span className="text-red-500">*</span></label>
-<textarea required value={form.reason} onChange={(event) => setForm((currentForm) => ({ ...currentForm, reason: event.target.value }))} rows={2} placeholder="Why is this device needed?" className="input-field resize-none" />
+              <textarea required value={form.reason} onChange={(event) => setForm((currentForm) => ({ ...currentForm, reason: event.target.value }))} rows={2} placeholder="Why is this device needed?" className="input-field resize-none" />
             </div>
             {lookupErrorMessage ? <p className="text-xs sm:col-span-2" style={{ color: 'var(--error-text)' }}>{lookupErrorMessage}</p> : null}
           </div>
@@ -525,17 +501,7 @@ export default function DeviceRequests() {
         </Modal>
       )}
 
-      <ConfirmDialog
-        isOpen={Boolean(confirm)}
-        onClose={() => setConfirm(null)}
-        onConfirm={() => {
-          if (confirm?.action === 'reject') { void handleReject(confirm.requestId); return }
-          if (confirm?.action === 'delete') { void handleDelete(confirm.requestId) }
-        }}
-        danger
-        title={confirm?.action === 'delete' ? 'Delete Request' : 'Reject Request'}
-        message={confirm?.action === 'delete' ? `Are you sure you want to delete ${confirm.requestLabel}?` : `Are you sure you want to reject ${confirm?.requestLabel ?? 'this device request'}?`}
-      />
+      <ConfirmDialog isOpen={Boolean(confirm)} onClose={() => setConfirm(null)} onConfirm={() => { if (confirm?.action === 'reject') { void handleReject(confirm.requestId); return } if (confirm?.action === 'delete') { void handleDelete(confirm.requestId) } }} danger title={confirm?.action === 'delete' ? 'Delete Request' : 'Reject Request'} message={confirm?.action === 'delete' ? `Are you sure you want to delete ${confirm.requestLabel}?` : `Are you sure you want to reject ${confirm?.requestLabel ?? 'this device request'}?`} />
     </div>
   )
 }

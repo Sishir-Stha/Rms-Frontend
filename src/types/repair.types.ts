@@ -124,7 +124,7 @@ export interface CreateRepairPayload {
   reported_by: number
   vendor_id: number
   priority: Priority
-  expected_completion: string | null
+  reported_date: string | null
 }
 
 export interface MoveRepairApiResponse {

@@ -17,6 +17,8 @@ export interface DeviceRequestApiItem {
   approved_by: number | null
   approver_name: string | null
   approval_date: string | null
+  recommended_date?: string | null   // Added
+  fulfilled_date?: string | null     // Added
   created_at: string
   updated_at: string
 }
@@ -33,7 +35,7 @@ export interface DeviceRequestDetailApiResponse {
   success: boolean
   message: string
   data: {
-    result: DeviceRequestApiItem
+    result: DeviceRequestApiItem  // Ensures .result exists
   }
 }
 
@@ -69,7 +71,7 @@ export interface UpdateDeviceRequestPayload {
 }
 
 export interface ApproveDeviceRequestPayload {
-  approval_status: Extract<RequestApprovalStatus, 'Approved' | 'Rejected'>
+  approval_status: Extract<RequestApprovalStatus, 'Approved' | 'Rejected' | 'Fulfilled' | 'Pending'>
   approved_by: number
 }
 
@@ -103,13 +105,16 @@ export interface DeviceRequestListItem {
   quantity: number
   priority: Priority
   requestDate: string
+  recommendedDate: string | null    // Added
   approvalStatus: RequestApprovalStatus
   approvedById: number | null
   approvedBy: string | null
   approvalDate: string | null
+  fulfilledDate: string | null      // Added
+  createdAt: string                 // Added
+  updatedAt: string                 // Added
 }
 
 export interface DeviceRequestDetailItem extends DeviceRequestListItem {
-  createdAt: string
-  updatedAt: string
+  // createdAt and updatedAt are now inherited from DeviceRequestListItem
 }
