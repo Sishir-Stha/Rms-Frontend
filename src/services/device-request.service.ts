@@ -12,10 +12,11 @@ import type {
   UpdateDeviceRequestPayload,
 } from '../types/device-request.types'
 
-const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
+
+const API_BASE_URL = `http://${typeof window !== 'undefined' ? window.location.hostname : '192.168.5.59'}:4000/api/v1`
+
 const LOAD_DEVICE_REQUESTS_ERROR_MESSAGE = 'Unable to load device requests right now.'
-const LOAD_DEVICE_REQUEST_DETAIL_ERROR_MESSAGE =
-  'Unable to load device request detail right now.'
+const LOAD_DEVICE_REQUEST_DETAIL_ERROR_MESSAGE = 'Unable to load device request detail right now.'
 const DEVICE_REQUESTS_SYNC_EVENT = 'device-requests:changed'
 
 interface DeviceRequestsPayloadEnvelope {
@@ -201,7 +202,7 @@ const normalizeRequestStatus = (
     case 'rejected':
       return 'Rejected'
     case 'fulfilled':
-      return 'Fulfilled' // <--- Added this case
+      return 'Fulfilled'
     default:
       return 'Requested'
   }
@@ -272,16 +273,26 @@ const readErrorBody = async (response: Response): Promise<string | null> => {
   }
 }
 
+// UPDATED: Only send query parameters if they actually have a value
 export async function fetchDeviceRequests(
   filters: FetchDeviceRequestsFilters,
   signal?: AbortSignal,
 ): Promise<DeviceRequestListItem[]> {
-  const params = new URLSearchParams({
-    approval_status: filters.approvalStatus,
-    device_type: filters.deviceType,
-  })
+  const params = new URLSearchParams()
+  
+  if (filters.approvalStatus) {
+    params.append('approval_status', filters.approvalStatus)
+  }
+  if (filters.deviceType) {
+    params.append('device_type', filters.deviceType)
+  }
 
-  const response = await fetch(`${API_BASE_URL}/device-requests?${params.toString()}`, {
+  const queryString = params.toString()
+  const url = queryString 
+    ? `${API_BASE_URL}/device-requests?${queryString}` 
+    : `${API_BASE_URL}/device-requests`
+
+  const response = await fetch(url, {
     method: 'GET',
     credentials: 'include',
     headers: {
