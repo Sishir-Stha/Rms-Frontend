@@ -122,7 +122,7 @@ export const getUserAccess = (email?: string | null) => {
     isRestricted: true,
     isRequestViewerOnly: REQUEST_VIEWER_ONLY_EMAILS.has(key),
   }
-}
+} 
 
 export const canCreateDeviceRequestForUser = (email?: string | null) => getUserAccess(email).canCreateRequest
 export const isRestrictedUser = (email?: string | null) => getUserAccess(email).isRestricted
