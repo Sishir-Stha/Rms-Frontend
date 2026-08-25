@@ -104,6 +104,10 @@ export default function RequestDetail() {
 
   const [quantityStr, setQuantityStr] = useState<string>('1')
 
+  // ADDED: Track which input the user actually interacted with to prevent false history logs
+  const [touchedQuantity, setTouchedQuantity] = useState(false)
+  const [touchedPartial, setTouchedPartial] = useState(false)
+
   const canViewRequested = currentUser?.email ? canViewRequestedStatus(currentUser.email) : true
   const canViewRecommended = currentUser?.email ? canViewRecommendedStatus(currentUser.email) : true
   const canViewApproved = currentUser?.email ? canViewApprovedStatus(currentUser.email) : true
@@ -213,6 +217,7 @@ export default function RequestDetail() {
     setPartialQuantity(clamped)
     setField('quantity', remaining)
     setQuantityStr(String(remaining))
+    setTouchedPartial(true) // Mark that the stepper was used
   }
 
   const handleQuantityInput = (raw: string) => {
@@ -222,6 +227,7 @@ export default function RequestDetail() {
       setField('quantity', parsed)
       setTotalQty(parsed)
       setPartialQuantity(parsed)
+      setTouchedQuantity(true) // Mark that the quantity box was typed in
     }
   }
 
@@ -246,18 +252,27 @@ export default function RequestDetail() {
     if (!form.requestedById || !form.departmentId || !form.requestedFor.trim() || !form.deviceType.trim()) { showToast('Requester, department, requested for, and device type are required', 'error'); return false }
     try {
       const newQty = form.quantity
-      if (sessionLoadedQty !== null && sessionLoadedQty !== newQty && trueOriginalQty !== null) {
+
+      // 1. Log QUANTITY change ONLY if they explicitly typed in the Quantity box
+      if (touchedQuantity && sessionLoadedQty !== null && sessionLoadedQty !== newQty) {
         const key = `req_history_${form.requestId}`
         const hist = JSON.parse(localStorage.getItem(key) || '[]')
-        const ev = { color: '#3b82f6', title: `${currentUser?.name || 'User'} updated the quantity from ${trueOriginalQty} units to ${newQty} units.`, date: new Date().toLocaleDateString() }
+        const ev = { color: '#3b82f6', title: `${currentUser?.name || 'User'} updated the quantity from ${sessionLoadedQty} units to ${newQty} units.`, date: new Date().toLocaleDateString() }
         if (!hist.some((h: any) => h.title === ev.title)) { hist.push(ev); localStorage.setItem(key, JSON.stringify(hist)) }
       }
-      if (sessionLoadedPartial !== null && sessionLoadedPartial !== partialQuantity) {
+
+      // 2. Log PARTIAL QUANTITY change ONLY if they explicitly clicked the Partial stepper
+      if (touchedPartial && sessionLoadedPartial !== null && sessionLoadedPartial !== partialQuantity) {
         const key = `req_history_${form.requestId}`
         const hist = JSON.parse(localStorage.getItem(key) || '[]')
-        const ev = { color: '#0891b2', title: `${currentUser?.name || 'User'} updated the quantity from ${sessionLoadedPartial} units to ${partialQuantity} units.`, date: new Date().toLocaleDateString() }
+        const ev = { color: '#0891b2', title: `${currentUser?.name || 'User'} updated the partial quantity from ${sessionLoadedPartial} units to ${partialQuantity} units.`, date: new Date().toLocaleDateString() }
         if (!hist.some((h: any) => h.title === ev.title)) { hist.push(ev); localStorage.setItem(key, JSON.stringify(hist)) }
       }
+
+      // Reset flags for the next save
+      setTouchedQuantity(false)
+      setTouchedPartial(false)
+
       await updateDeviceRequestById(form.requestId, {
         requested_by: form.requestedById, department_id: form.departmentId, device_type: form.deviceType.trim(),
         brand: form.brand.trim(), reason: form.reason.trim(), quantity: form.quantity, priority: form.priority,
