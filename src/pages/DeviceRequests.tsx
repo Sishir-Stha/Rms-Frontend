@@ -75,6 +75,9 @@ export default function DeviceRequests() {
   const { showToast } = useToast()
   const navigate = useNavigate()
 
+  // FIX: Identify Anjana to hide the Fulfill button on the list page
+  const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com'
+
   const canCreateDeviceRequest = canCreateDeviceRequestForUser(currentUser?.email)
   const access = getUserAccess(currentUser?.email)
   const isRestrictedUserFlag = access.isRestricted && !access.canCreateRequest
@@ -422,7 +425,8 @@ export default function DeviceRequests() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          {canFulfillRequest && request.approvalStatus === 'Approved' && (
+                          {/* FIX: Hide Fulfill button specifically for Anjana on the list page */}
+                          {!isAnjana && canFulfillRequest && request.approvalStatus === 'Approved' && (
                             <button onClick={() => void handleFulfill(request.requestId)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--success-text)', background: 'var(--success-bg)' }}>
                               <CheckCircle size={12} /> Fulfill
                             </button>
