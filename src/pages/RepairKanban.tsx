@@ -37,9 +37,42 @@ export default function RepairKanban() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  
+
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+
+  // NEW: Get the appropriate date based on card status
+  // Uses "as any" so it never breaks even if a field name is missing in the type
+  const getCardStatusDate = (card: RepairListItem): string => {
+    const c = card as any
+    switch (card.status) {
+      case 'Open':
+        // Reported date for Open
+        return formatDateOnly(
+          c.reportedDate || c.reported_date ||
+          c.createdDate || c.created_date ||
+          c.createdAt || c.created_at ||
+          c.requestDate || c.request_date
+        )
+      case 'In Progress':
+        // Expected completion for In Progress
+        return formatDateOnly(
+          c.expectedCompletion || c.expected_completion ||
+          c.expectedDate || c.expected_date
+        )
+        case 'Resolved':
+        case 'Closed':
+        return formatDateOnly(
+        c.resolvedDate || c.resolved_date ||
+        c.expectedCompletion || c.expected_completion ||
+        c.reportedDate || c.reported_date
+      )
+      default:
+        return formatDateOnly(
+          c.expectedCompletion || c.reportedDate || c.createdDate
+        )
+    }
+  }
 
   useEffect(() => {
     const unsubscribe = subscribeToRepairsChanged(() => setRefreshKey((currentValue) => currentValue + 1))
@@ -57,7 +90,8 @@ export default function RepairKanban() {
           let filteredCards = response
           if (dateFrom || dateTo) {
             filteredCards = response.filter((card: RepairListItem) => {
-              const cardDate = formatDateOnly(card.expectedCompletion)
+              // UPDATED: filter by the status-based date
+              const cardDate = getCardStatusDate(card)
               if (dateFrom && cardDate < dateFrom) return false
               if (dateTo && cardDate > dateTo) return false
               return true
@@ -206,9 +240,10 @@ export default function RepairKanban() {
                           </div>
                           <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>{card.reportedBy.split(' ')[0]}</span>
                         </div>
-                        {card.expectedCompletion && (
+                        {/* UPDATED: show the status-based date (reported / expected / resolved) */}
+                        {getCardStatusDate(card) && (
                           <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
-                            {formatDateOnly(card.expectedCompletion) || '-'}
+                            {getCardStatusDate(card)}
                           </span>
                         )}
                       </div>
