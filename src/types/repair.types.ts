@@ -15,6 +15,7 @@ export interface RepairListApiItem {
   expected_completion: string | null
   resolved_date: string | null
   costs: string
+  reported_date?: string | null;
 }
 
 export interface RepairListApiResponse {
@@ -149,6 +150,7 @@ export interface RepairListItem {
   expectedCompletion: string | null
   resolvedDate: string | null
   cost: number
+  reportedDate?: string; 
 }
 
 export interface RepairDetailItem {

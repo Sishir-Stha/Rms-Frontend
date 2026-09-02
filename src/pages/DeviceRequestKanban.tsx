@@ -78,10 +78,10 @@ export default function DeviceRequestKanban() {
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
-  const getCardStatusDate = useCallback((card: DeviceRequestListItem): string => {
+    const getCardStatusDate = useCallback((card: DeviceRequestListItem): string => {
     switch (card.approvalStatus) {
       case 'Requested': return getLocalDateString(card.requestDate)
-      case 'Pending': return getLocalDateString(card.recommendedDate) || getLocalDateString(card.requestDate)
+      case 'Pending': return getLocalDateString(card.recommendedDate) || getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
       case 'Approved':
       case 'Rejected': return getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
       case 'Fulfilled': return getLocalDateString(card.fulfilledDate) || getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
@@ -212,7 +212,7 @@ export default function DeviceRequestKanban() {
     const todayStr = getLocalDateString(new Date())
     let optimisticCard: DeviceRequestListItem
     switch (col) {
-      case 'Requested': optimisticCard = { ...targetCard, approvalStatus: col, requestDate: todayStr }; break
+      case 'Requested': optimisticCard = { ...targetCard, approvalStatus: col }; break
       case 'Pending': optimisticCard = { ...targetCard, approvalStatus: col, recommendedDate: todayStr }; break
       case 'Approved': optimisticCard = { ...targetCard, approvalStatus: col, approvedById: currentUser?.id ?? targetCard.approvedById, approvedBy: currentUser?.name ?? targetCard.approvedBy, approvalDate: todayStr }; break
       case 'Rejected': optimisticCard = { ...targetCard, approvalStatus: col, approvedById: currentUser?.id ?? targetCard.approvedById, approvedBy: currentUser?.name ?? targetCard.approvedBy, approvalDate: todayStr }; break

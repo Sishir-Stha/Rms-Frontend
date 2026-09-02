@@ -18,6 +18,7 @@ import {
   canViewApprovedStatus, canViewRejectedStatus, canViewFulfilledStatus, canFulfillRequestStatus,
   canActOnRequested, canActOnRecommended, getRequestedActionLabel,
 } from '../utils/access-control'
+import { updateDeviceRequestExpense } from '../api/reports'
 
 interface RequestDetailFormState {
   requestId: number; id: string; requestedById: number; requestedFor: string; departmentId: number;
@@ -103,8 +104,6 @@ export default function RequestDetail() {
   const expenseWithVat = useMemo(() => Math.round(expenseWithoutVat * 1.13 * 100) / 100, [expenseWithoutVat])
 
   const [quantityStr, setQuantityStr] = useState<string>('1')
-
-  // ADDED: Track which input the user actually interacted with to prevent false history logs
   const [touchedQuantity, setTouchedQuantity] = useState(false)
   const [touchedPartial, setTouchedPartial] = useState(false)
 
@@ -147,7 +146,6 @@ export default function RequestDetail() {
         const total = storedTotal !== null ? Number(storedTotal) : dbQty
         setTotalQty(total)
         const initialPartial = storedPartial !== null ? Number(storedPartial) : dbQty
-        // Allow partial up to full total (default = total). Never exceed total.
         setPartialQuantity(Math.max(0, Math.min(initialPartial, total)))
         setSessionLoadedPartial(Math.max(0, Math.min(initialPartial, total)))
 
@@ -203,9 +201,6 @@ export default function RequestDetail() {
     setForm((cur) => (cur ? { ...cur, [key]: value } : cur))
   }
 
-  // Quantity = Total - Partial, but:
-  //  - if Partial >= Total (default state) => Quantity = Total (never 0)
-  //  - otherwise Quantity is at least 1
   const computeQuantity = (total: number, partial: number): number => {
     if (partial >= total) return total
     return Math.max(1, total - partial)
@@ -217,7 +212,7 @@ export default function RequestDetail() {
     setPartialQuantity(clamped)
     setField('quantity', remaining)
     setQuantityStr(String(remaining))
-    setTouchedPartial(true) // Mark that the stepper was used
+    setTouchedPartial(true)
   }
 
   const handleQuantityInput = (raw: string) => {
@@ -227,15 +222,40 @@ export default function RequestDetail() {
       setField('quantity', parsed)
       setTotalQty(parsed)
       setPartialQuantity(parsed)
-      setTouchedQuantity(true) // Mark that the quantity box was typed in
+      setTouchedQuantity(true)
     }
   }
 
-  const savePartialAndExpense = () => {
-    if (!form) return
-    localStorage.setItem(`req_total_qty_${form.requestId}`, String(totalQty))
-    localStorage.setItem(`req_partial_qty_${form.requestId}`, String(partialQuantity))
-    localStorage.setItem(`req_expense_${form.requestId}`, expenseWithoutVatStr)
+  // UPDATED: Added console logs to help debug why it's not saving to DBeaver
+  const savePartialAndExpense = async (): Promise<boolean> => {
+    if (!form) return false
+    
+    try {
+      console.log("💾 Attempting to save to DB:", form.requestId, expenseWithoutVat, expenseWithVat);
+      
+      const response = await updateDeviceRequestExpense(
+        String(form.requestId), 
+        expenseWithoutVat, 
+        expenseWithVat
+      );
+      
+      console.log("✅ DB Response:", response);
+
+      if (!response.success) {
+        showToast(response.message || "Failed to save expense to database", "error");
+        return false;
+      }
+    } catch (error) {
+      console.error("❌ Failed to save expense to DB:", error);
+      showToast("Failed to save expense to database", "error");
+      return false;
+    }
+
+    localStorage.setItem(`req_total_qty_${form.requestId}`, String(totalQty));
+    localStorage.setItem(`req_partial_qty_${form.requestId}`, String(partialQuantity));
+    localStorage.setItem(`req_expense_${form.requestId}`, expenseWithoutVatStr);
+    
+    return true;
   }
 
   const handleStatusChange = (nextStatus: RequestApprovalStatus) => {
@@ -252,8 +272,7 @@ export default function RequestDetail() {
     if (!form.requestedById || !form.departmentId || !form.requestedFor.trim() || !form.deviceType.trim()) { showToast('Requester, department, requested for, and device type are required', 'error'); return false }
     try {
       const newQty = form.quantity
-
-      // 1. Log QUANTITY change ONLY if they explicitly typed in the Quantity box
+      
       if (touchedQuantity && sessionLoadedQty !== null && sessionLoadedQty !== newQty) {
         const key = `req_history_${form.requestId}`
         const hist = JSON.parse(localStorage.getItem(key) || '[]')
@@ -261,7 +280,6 @@ export default function RequestDetail() {
         if (!hist.some((h: any) => h.title === ev.title)) { hist.push(ev); localStorage.setItem(key, JSON.stringify(hist)) }
       }
 
-      // 2. Log PARTIAL QUANTITY change ONLY if they explicitly clicked the Partial stepper
       if (touchedPartial && sessionLoadedPartial !== null && sessionLoadedPartial !== partialQuantity) {
         const key = `req_history_${form.requestId}`
         const hist = JSON.parse(localStorage.getItem(key) || '[]')
@@ -269,7 +287,6 @@ export default function RequestDetail() {
         if (!hist.some((h: any) => h.title === ev.title)) { hist.push(ev); localStorage.setItem(key, JSON.stringify(hist)) }
       }
 
-      // Reset flags for the next save
       setTouchedQuantity(false)
       setTouchedPartial(false)
 
@@ -279,7 +296,9 @@ export default function RequestDetail() {
         requested_for: form.requestedFor.trim(), request_date: toNullableDate(form.requestDate),
         approval_status: form.approvalStatus, approved_by: form.approvedById, approval_date: toNullableDate(form.approvalDate)
       })
-      savePartialAndExpense()
+      
+      await savePartialAndExpense()
+      
       setSessionLoadedQty(newQty); setSessionLoadedPartial(partialQuantity)
       const refreshed = await fetchDeviceRequestById(form.requestId)
       setForm(createRequestForm(refreshed))

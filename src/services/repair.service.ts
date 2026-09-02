@@ -54,6 +54,7 @@ const isRepairListApiItem = (value: unknown): value is RepairListApiItem => {
     (typeof value.expected_completion === 'string' ||
       value.expected_completion === null) &&
     (typeof value.resolved_date === 'string' || value.resolved_date === null) &&
+        (typeof value.reported_date === 'string' || value.reported_date === null || value.reported_date === undefined) && 
     typeof value.costs === 'string'
   )
 }
@@ -239,6 +240,7 @@ const mapRepairListItem = (repair: RepairListApiItem): RepairListItem => {
     priority: normalizePriority(repair.priority),
     expectedCompletion: repair.expected_completion,
     resolvedDate: repair.resolved_date,
+    reportedDate: repair.reported_date ?? undefined,
     cost: Number.parseFloat(repair.costs) || 0,
   }
 }

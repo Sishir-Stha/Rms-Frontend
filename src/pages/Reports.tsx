@@ -22,7 +22,7 @@ const REPORT_CARDS: ReportCard[] = [
   {
     id: 'device',
     title: 'Device Request Report',
-    description: 'Review approved, pending, and rejected request totals by department code.',
+    description: 'Review approved, pending, rejected and fulfilled request totals by department name.',
     route: '/reports/device',
     color: '#adc6ff',
     Icon: FileText,
