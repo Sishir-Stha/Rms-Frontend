@@ -32,7 +32,6 @@ import {
   canFulfillRequestStatus,
   canActOnRequested,
   canActOnRecommended,
-  getRequestedActionLabel,
 } from '../utils/access-control'
 import { formatDeviceRequestStatus } from '../utils/device-request-status'
 
@@ -75,7 +74,6 @@ export default function DeviceRequests() {
   const { showToast } = useToast()
   const navigate = useNavigate()
 
-  // FIX: Identify Anjana to hide the Fulfill button on the list page
   const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com'
 
   const canCreateDeviceRequest = canCreateDeviceRequestForUser(currentUser?.email)
@@ -87,13 +85,12 @@ export default function DeviceRequests() {
   const canViewFulfilled = currentUser?.email ? canViewFulfilledStatus(currentUser.email) : true
   const canViewRequested = currentUser?.email ? canViewRequestedStatus(currentUser.email) : true
   const canViewApproved = currentUser?.email ? canViewApprovedStatus(currentUser.email) : true
-  const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : true
+  const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : false
   const canFulfillRequest = currentUser?.email ? canFulfillRequestStatus(currentUser.email) : false
 
-  // STRICT ACTION PERMISSIONS
   const canActOnReq = currentUser?.email ? canActOnRequested(currentUser.email) : false
   const canActOnRec = currentUser?.email ? canActOnRecommended(currentUser.email) : false
-  const requestedActionLabel = currentUser?.email ? getRequestedActionLabel(currentUser.email) : 'Approve'
+  const requestedActionLabel = 'Recommend'
 
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
@@ -286,8 +283,12 @@ export default function DeviceRequests() {
   }
 
   const handleDelete = async (requestId: number) => {
+    if (!currentUser) {
+      showToast('You must be logged in to delete requests', 'error')
+      return
+    }
     try {
-      await deleteDeviceRequestById(requestId)
+      await deleteDeviceRequestById(requestId, currentUser.id)
       setRequests((previousRequests) => previousRequests.filter((request) => request.requestId !== requestId))
       showToast('Request deleted', 'success')
     } catch (error) {
@@ -398,7 +399,6 @@ export default function DeviceRequests() {
                     <td onClick={(event) => event.stopPropagation()}><StatusBadge status={formatDeviceRequestStatus(request.approvalStatus)} /></td>
                     <td className="text-xs whitespace-nowrap" style={{ color: 'var(--muted)' }} onClick={(event) => event.stopPropagation()}>{request.requestDate}</td>
                     <td onClick={(event) => event.stopPropagation()}>
-                      {/* STRICT CHECK: Only show Approve/Reject if explicitly allowed for this specific status */}
                       {((request.approvalStatus === 'Requested' && canActOnReq) || (request.approvalStatus === 'Pending' && canActOnRec)) ? (
                         <div className="flex items-center gap-1.5">
                           {!isRestrictedUserFlag && (
@@ -425,7 +425,6 @@ export default function DeviceRequests() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5">
-                          {/* FIX: Hide Fulfill button specifically for Anjana on the list page */}
                           {!isAnjana && canFulfillRequest && request.approvalStatus === 'Approved' && (
                             <button onClick={() => void handleFulfill(request.requestId)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ color: 'var(--success-text)', background: 'var(--success-bg)' }}>
                               <CheckCircle size={12} /> Fulfill

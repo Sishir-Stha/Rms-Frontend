@@ -28,6 +28,7 @@ interface ExpenseRow {
   deviceType: string
   brand: string
   department: string
+  quantity: number
   expenseWithoutVat: number
   expenseWithVat: number
 }
@@ -56,7 +57,6 @@ function DepartmentTick(props: any) {
   const { x, y, payload } = props
   const name = String(payload?.value ?? '')
   const words = name.split(' ')
-
   const lines: string[] = []
   let current = ''
   words.forEach((word) => {
@@ -69,7 +69,6 @@ function DepartmentTick(props: any) {
     }
   })
   if (current) lines.push(current)
-
   return (
     <g transform={`translate(${x},${y})`}>
       {lines.map((line, index) => (
@@ -96,15 +95,12 @@ export default function DeviceReportDetail() {
   const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
   const currentMonth = useMemo(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   }, [])
-
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth)
 
-  // Maps API response to the exact shape your UI expects
   const mapExpensesToUI = (apiRows: ApiExpenseRow[]): ExpenseRow[] => {
     return apiRows.map((r) => ({
       requestId: r.request_id,
@@ -112,6 +108,7 @@ export default function DeviceReportDetail() {
       deviceType: r.device_type,
       brand: r.brand,
       department: r.department_name || '-',
+      quantity: Number((r as any).quantity) || 0,
       expenseWithoutVat: Number(r.expense_without_vat) || 0,
       expenseWithVat: Number(r.expense_with_vat) || 0,
     }))
@@ -119,7 +116,6 @@ export default function DeviceReportDetail() {
 
   useEffect(() => {
     let isMounted = true
-
     const loadReport = async () => {
       setIsLoading(true)
       setErrorMessage(null)
@@ -128,11 +124,9 @@ export default function DeviceReportDetail() {
           getDeviceReportSummary(),
           fetchDepartments().catch(() => [] as RepairDepartmentOption[]),
         ])
-        
         if (!summaryRes.success) {
           throw new Error(summaryRes.message || LOAD_REPORT_ERROR_MESSAGE)
         }
-
         if (isMounted) {
           setSummaryData(summaryRes.data || [])
           setDepartments(Array.isArray(deptOptions) ? deptOptions : [])
@@ -146,12 +140,10 @@ export default function DeviceReportDetail() {
         if (isMounted) setIsLoading(false)
       }
     }
-
     void loadReport()
     return () => { isMounted = false }
   }, [])
 
-  // Fetch expenses for the selected month
   useEffect(() => {
     const loadExpenses = async () => {
       try {
@@ -173,15 +165,12 @@ export default function DeviceReportDetail() {
     summaryData.forEach((row) => {
       if (row.month) monthsSet.add(row.month)
     })
-    
     const allKeys = Array.from(monthsSet).sort().reverse()
     if (allKeys.length === 0) return [currentMonth]
-    
     const earliest = allKeys[allKeys.length - 1]
     const months: string[] = []
     let [y, m] = currentMonth.split('-').map(Number)
     const [ey, em] = earliest.split('-').map(Number)
-    
     while (y > ey || (y === ey && m >= em)) {
       months.push(`${y}-${String(m).padStart(2, '0')}`)
       m -= 1
@@ -190,7 +179,6 @@ export default function DeviceReportDetail() {
     return months
   }, [summaryData, currentMonth])
 
-  // Always include EVERY department from BOTH sources so none are accidentally dropped
   const chartRows = useMemo<DepartmentMonthRow[]>(() => {
     const namesFromTable = departments.map((d) => d.department_name)
     const namesFromSummary = Array.from(new Set(
@@ -198,7 +186,6 @@ export default function DeviceReportDetail() {
         .filter((row) => row.month === selectedMonth)
         .map((row) => row.department_name)
     ))
-
     const allNamesSet = new Set<string>()
     namesFromTable.forEach((n) => allNamesSet.add(n))
     namesFromSummary.forEach((n) => {
@@ -206,14 +193,11 @@ export default function DeviceReportDetail() {
         allNamesSet.add(n)
       }
     })
-
     const allNames = Array.from(allNamesSet).sort()
-
     return allNames.map((name) => {
       const summaryRow = summaryData.find(
         (r) => r.month === selectedMonth && r.department_name.toLowerCase() === name.toLowerCase()
       )
-      
       return {
         department: name,
         Approved: summaryRow?.Approved || 0,
@@ -294,7 +278,6 @@ export default function DeviceReportDetail() {
                 </p>
               </div>
             </div>
-
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartRows}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(62,74,61,0.15)" />
@@ -371,6 +354,7 @@ export default function DeviceReportDetail() {
                     <th>Device Name</th>
                     <th>Brand</th>
                     <th>Department</th>
+                    <th>Quantity</th>
                     <th>Expense Without VAT [Rs.]</th>
                     <th>Expense With VAT (13%) [Rs.]</th>
                   </tr>
@@ -378,7 +362,7 @@ export default function DeviceReportDetail() {
                 <tbody>
                   {expenseRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center py-12 text-on-surface-variant">
+                      <td colSpan={6} className="text-center py-12 text-on-surface-variant">
                         No fulfilled device expense data for {formatMonthLabel(selectedMonth)}
                       </td>
                     </tr>
@@ -388,6 +372,7 @@ export default function DeviceReportDetail() {
                         <td className="font-medium text-on-surface">{row.deviceType}</td>
                         <td>{row.brand || '-'}</td>
                         <td>{row.department}</td>
+                        <td>{row.quantity}</td>
                         <td>{row.expenseWithoutVat.toLocaleString()}</td>
                         <td>{row.expenseWithVat.toLocaleString()}</td>
                       </tr>
@@ -397,7 +382,7 @@ export default function DeviceReportDetail() {
                 {expenseRows.length > 0 && (
                   <tfoot>
                     <tr style={{ borderTop: '2px solid var(--border-color)' }}>
-                      <td colSpan={3} className="font-semibold text-on-surface text-right">Total</td>
+                      <td colSpan={4} className="font-semibold text-on-surface text-right">Total</td>
                       <td className="font-semibold">{totalWithoutVat.toLocaleString()}</td>
                       <td className="font-semibold">{totalWithVat.toLocaleString()}</td>
                     </tr>

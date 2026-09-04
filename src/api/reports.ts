@@ -49,6 +49,7 @@ export interface DeviceExpenseRow {
   device_type: string
   brand: string
   department_name: string;
+  quantity: number
   expense_without_vat: number
   expense_with_vat: number
 }

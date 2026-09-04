@@ -183,7 +183,9 @@ export const canViewRequestedStatus = (email?: string | null) => getUserAccess(e
 export const canViewRecommendedStatus = (email?: string | null) => getUserAccess(email).canViewRecommended
 export const canViewRejectedStatus = (email?: string | null) => getUserAccess(email).canViewRejected
 export const canViewFulfilledStatus = (email?: string | null) => getUserAccess(email).canViewFulfilled
-export const canDeleteDeviceRequest = (email?: string | null) => getUserAccess(email).canDeleteRequest
+export const canDeleteDeviceRequest = (email: string | null | undefined): boolean => {
+  return email?.trim().toLowerCase() === 'sishir@yetiairlines.com'
+}
 export const canEditDeviceDetails = (email?: string | null) => getUserAccess(email).canEditDeviceDetails
 export const canEditRequesterInformation = (email?: string | null) => getUserAccess(email).canEditRequesterInformation
 export const canViewApprovedStatus = (email?: string | null) => getUserAccess(email).canViewApproved

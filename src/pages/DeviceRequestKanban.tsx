@@ -9,6 +9,7 @@ import {
   approveDeviceRequestById,
   fetchDeviceRequests,
   moveDeviceRequestCard,
+  processSplitFulfillment,
   subscribeToDeviceRequestsChanged,
 } from '../services/device-request.service'
 import type { RequestApprovalStatus } from '../types/app'
@@ -45,14 +46,6 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'Fulfilled', label: 'Fulfilled', color: '#0891b2' },
 ]
 
-const VALID_TRANSITIONS: Record<RequestApprovalStatus, RequestApprovalStatus[]> = {
-  'Requested': ['Pending', 'Rejected'],
-  'Pending': ['Requested', 'Rejected', 'Approved', 'Fulfilled'],
-  'Approved': ['Rejected', 'Fulfilled'],
-  'Rejected': ['Requested', 'Pending'],
-  'Fulfilled': ['Requested', 'Pending'],
-}
-
 export default function DeviceRequestKanban() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
@@ -78,7 +71,7 @@ export default function DeviceRequestKanban() {
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
-    const getCardStatusDate = useCallback((card: DeviceRequestListItem): string => {
+  const getCardStatusDate = useCallback((card: DeviceRequestListItem): string => {
     switch (card.approvalStatus) {
       case 'Requested': return getLocalDateString(card.requestDate)
       case 'Pending': return getLocalDateString(card.recommendedDate) || getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
@@ -89,11 +82,9 @@ export default function DeviceRequestKanban() {
     }
   }, [])
 
-  // UPDATED: Anjana now sees Recommended (Pending) column too
   const visibleColumns = useMemo(() => {
     return COLUMNS.filter((col) => {
       if (currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com') {
-        // Anjana sees: Recommended, Approved, Rejected, Fulfilled
         return col.id === 'Pending' || col.id === 'Approved' || col.id === 'Rejected' || col.id === 'Fulfilled'
       }
       if (col.id === 'Requested' && !access.canViewRequested) return false
@@ -151,23 +142,12 @@ export default function DeviceRequestKanban() {
 
   const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com'
 
-   // NEW: decides whether a card can be dragged at all for the current user
   const canDragCard = (status: RequestApprovalStatus): boolean => {
     const email = currentUser?.email
     if (!canManageKanban(email)) return false
-
     const user = email?.trim().toLowerCase()
-
-    // Anjana: Recommended & Rejected are strictly view-only
-    // (Fulfilled stays draggable so she can do Fulfilled -> Approved)
     if (user === 'anjana@yetiairlines.com' && (status === 'Pending' || status === 'Rejected')) return false
-
-    // Sudharshan: Fulfilled is strictly view-only
     if (user === 'sudharshan@yetiairlines.com' && status === 'Fulfilled') return false
-
-    // Only draggable if the user has at least one allowed destination from this status
-    // (This makes Requested/Recommended/Rejected read-only for default users,
-    //  because their only allowed moves are Approved <-> Fulfilled)
     return COLUMNS.some((col) => canMoveKanbanStatus(email, status, col.id))
   }
 
@@ -180,19 +160,15 @@ export default function DeviceRequestKanban() {
     setDragging(requestId)
   }
 
-  // UPDATED: use the central permission logic instead of VALID_TRANSITIONS
   const onDragOver = (event: DragEvent<HTMLDivElement>, colId: RequestApprovalStatus) => {
     event.preventDefault()
     if (!canManageKanban(currentUser?.email)) return
-
     if (dragging !== null) {
       const draggedCard = cards.find((c) => c.requestId === dragging)
       if (draggedCard) {
-        // Allows Anjana Fulfilled -> Approved, blocks anything not permitted per user
         if (!canMoveKanbanStatus(currentUser?.email, draggedCard.approvalStatus, colId)) return
       }
     }
-
     setDragOver(colId)
   }
 
@@ -228,6 +204,28 @@ export default function DeviceRequestKanban() {
         showToast(`Request moved to ${formatDeviceRequestStatus(col)}`, col === 'Approved' ? 'success' : 'info')
         return
       }
+
+      if (col === 'Fulfilled' && currentStatus === 'Approved') {
+        const anyCard = targetCard as any
+        const planned = Number(anyCard.plannedFulfilledQty)
+        const hasPlanned = anyCard.plannedFulfilledQty != null && !isNaN(planned) && planned > 0 && planned < targetCard.quantity
+        let qty = targetCard.quantity
+        if (hasPlanned) {
+          qty = planned
+        } else {
+          const qtyStr = window.prompt(`How many of ${targetCard.quantity} units are fulfilled now?`, String(targetCard.quantity))
+          if (qtyStr === null) { setCards(previousCards); return }
+          qty = parseInt(qtyStr, 10)
+          if (isNaN(qty) || qty < 1 || qty > targetCard.quantity) { showToast('Invalid fulfilled quantity', 'error'); setCards(previousCards); return }
+        }
+        if (qty < targetCard.quantity) {
+          if (!currentUser) { setCards(previousCards); showToast('You must be logged in', 'error'); return }
+          await processSplitFulfillment(requestId, { fulfilled_quantity: qty, performed_by: Number(currentUser?.id || 0) })
+          showToast(`Split done: ${qty} fulfilled, ${targetCard.quantity - qty} remaining in Approved`, 'success')
+          return
+        }
+      }
+
       const updatedCard = await moveDeviceRequestCard(requestId, col)
       if (updatedCard) updateCard(updatedCard)
       showToast(`Request moved to ${formatDeviceRequestStatus(col)}`, 'info')
@@ -237,35 +235,26 @@ export default function DeviceRequestKanban() {
     }
   }
 
-   const onDrop = async (
-    event: DragEvent<HTMLDivElement>,
-    colId: RequestApprovalStatus
-  ) => {
+  const onDrop = async (event: DragEvent<HTMLDivElement>, colId: RequestApprovalStatus) => {
     event.preventDefault()
     if (dragging === null) return
-
     if (!canManageKanban(currentUser?.email)) {
       showToast('You do not have permission to move requests', 'error')
       setDragging(null)
       setDragOver(null)
       return
     }
-
     const targetCard = cards.find((card) => card.requestId === dragging)
-
-    // Safety guard: block any move the user is not allowed to make
     if (!targetCard || !canMoveKanbanStatus(currentUser?.email, targetCard.approvalStatus, colId)) {
       setDragging(null)
       setDragOver(null)
       return
     }
-
     if (colId === 'Rejected') {
       setConfirm({ requestId: dragging, col: colId })
     } else {
       await moveCard(dragging, colId, targetCard.approvalStatus)
     }
-
     setDragging(null)
     setDragOver(null)
   }
@@ -321,12 +310,11 @@ export default function DeviceRequestKanban() {
               </div>
               <div className="flex-1 p-3 space-y-3 transition-colors" style={{ minHeight: '200px', background: dragOver === column.id ? 'var(--kanban-col-hover)' : undefined }}>
                 {columnCards.map((card) => {
-                  // UPDATED: Anjana cannot drag Recommended, Rejected, or Fulfilled cards
                   const isAnjanaViewOnly = isAnjana && (card.approvalStatus === 'Pending' || card.approvalStatus === 'Rejected' || card.approvalStatus === 'Fulfilled')
                   return (
                     <div
                       key={card.requestId}
-                      draggable={canDragCard(card.approvalStatus)}
+                      draggable={canDragCard(card.approvalStatus) && !isAnjanaViewOnly}
                       onDragStart={() => onDragStart(card.requestId)}
                       onClick={(e) => {
                         e.stopPropagation()
