@@ -58,6 +58,8 @@ const STATUSES: StatusFilter[] = ['All', 'Requested', 'Pending', 'Approved', 'Re
 const SUMMARY_STATUSES: RequestApprovalStatus[] = ['Requested', 'Pending', 'Approved', 'Rejected', 'Fulfilled']
 const PRIORITIES: Priority[] = ['Critical', 'High', 'Medium', 'Low']
 
+const PRIORITY_RANK: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 }
+
 const emptyForm: DeviceRequestFormData = {
   requestedById: 0, requestedFor: '', departmentId: 0, deviceType: '', brand: '', reason: '', quantity: 1, priority: 'Medium',
 }
@@ -91,6 +93,16 @@ export default function DeviceRequests() {
   const canActOnReq = currentUser?.email ? canActOnRequested(currentUser.email) : false
   const canActOnRec = currentUser?.email ? canActOnRecommended(currentUser.email) : false
   const requestedActionLabel = 'Recommend'
+
+  // NEW: per-user "focus status" that sorts to the very top (with priority order inside)
+  const focusStatus = useMemo<RequestApprovalStatus | null>(() => {
+    const e = currentUser?.email?.trim().toLowerCase() || ''
+    const n = (currentUser?.name || '').trim().toLowerCase()
+    if (e === 'anjana@yetiairlines.com' || n.includes('anjana')) return 'Approved'
+    if (e === 'sudharshan@yetiairlines.com' || n.includes('sudharshan')) return 'Pending'
+    if (e.includes('umesh') || n.includes('umesh')) return 'Requested'
+    return null
+  }, [currentUser])
 
   const [requests, setRequests] = useState<DeviceRequestListItem[]>([])
   const [users, setUsers] = useState<RepairUserOption[]>([])
@@ -184,8 +196,19 @@ export default function DeviceRequests() {
         const matchesSearch = query === '' || request.id.toLowerCase().includes(query) || request.requestedBy.toLowerCase().includes(query) || request.department.toLowerCase().includes(query) || request.deviceType.toLowerCase().includes(query) || request.brand.toLowerCase().includes(query)
         return matchesStatus && matchesDate && matchesSearch
       })
-      .sort((a, b) => b.requestId - a.requestId)
-  }, [requests, search, statusFilter, dateFrom, dateTo, canViewRequested, canViewRecommended, canViewApproved, canViewRejected, canViewFulfilled])
+      .sort((a, b) => {
+        // NEW: role-based ordering for Anjana / Sudharshan / Umesh
+        if (focusStatus) {
+          const statusRank = (s: RequestApprovalStatus): number =>
+            s === focusStatus ? 0 : s === 'Rejected' ? 2 : s === 'Fulfilled' ? 3 : 1
+          const sr = statusRank(a.approvalStatus) - statusRank(b.approvalStatus)
+          if (sr !== 0) return sr
+          const pr = (PRIORITY_RANK[a.priority] ?? 4) - (PRIORITY_RANK[b.priority] ?? 4)
+          if (pr !== 0) return pr
+        }
+        return b.requestId - a.requestId
+      })
+  }, [requests, search, statusFilter, dateFrom, dateTo, canViewRequested, canViewRecommended, canViewApproved, canViewRejected, canViewFulfilled, focusStatus])
 
   const paginatedRequests = filteredRequests
 
