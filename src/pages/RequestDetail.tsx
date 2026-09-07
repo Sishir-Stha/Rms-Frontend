@@ -213,22 +213,33 @@ export default function RequestDetail() {
     });
   };
 
-  const performSave = async (): Promise<boolean> => {
+   const performSave = async (): Promise<boolean> => {
     if (!form) return false;
     if (!form.requestedById || !form.departmentId || !form.requestedFor.trim() || !form.deviceType.trim()) { showToast('Requester, department, requested for, and device type are required', 'error'); return false; }
+    
+    // FIX: if quantity changed and partial is now > quantity, clamp partial to new quantity
+    let adjustedPartial = partialFulfilledQty;
+    if (adjustedPartial > form.quantity) {
+      adjustedPartial = form.quantity;
+      setPartialFulfilledQty(adjustedPartial);
+    }
+
     try {
       await updateDeviceRequestById(form.requestId, {
         requested_by: form.requestedById, department_id: form.departmentId, device_type: form.deviceType.trim(),
         brand: form.brand.trim(), reason: form.reason.trim(), quantity: form.quantity, priority: form.priority,
         requested_for: form.requestedFor.trim(), request_date: toNullableDate(form.requestDate),
         approval_status: form.approvalStatus, approved_by: form.approvedById, approval_date: toNullableDate(form.approvalDate),
-        planned_fulfilled_qty: form.approvalStatus === 'Approved' ? partialFulfilledQty : null,
+        planned_fulfilled_qty: form.approvalStatus === 'Approved' ? adjustedPartial : null,
         updated_by: currentUser?.id ?? null,
         expense_without_vat: showPartialAndExpense ? form.expenseWithoutVat : null,
         expense_with_vat: showPartialAndExpense ? form.expenseWithVat : null,
       } as any);
       const refreshed = await fetchDeviceRequestById(form.requestId);
       setForm(createRequestForm(refreshed));
+      // Sync partial from refreshed data
+      const refreshedPartial = (refreshed as any).plannedFulfilledQty ?? refreshed.quantity ?? 0;
+      setPartialFulfilledQty(Math.min(refreshedPartial, refreshed.quantity));
       return true;
     } catch (error) { showToast(error instanceof Error ? error.message : 'Failed to update device request.', 'error'); return false; }
   };
@@ -250,10 +261,14 @@ export default function RequestDetail() {
     finally { setIsSaving(false); setShowRejectDialog(false); }
   };
 
-  const handleFulfill = async () => {
+    const handleFulfill = async () => {
     if (!currentUser || !form) return;
     setIsSaving(true);
     try {
+      // FIX: persist pending edits (expenses, quantity, etc.) BEFORE fulfilling
+      const ok = await performSave();
+      if (!ok) { setIsSaving(false); return; }
+
       if (partialFulfilledQty < form.quantity) {
         await processSplitFulfillment(form.requestId, {
           fulfilled_quantity: partialFulfilledQty,
@@ -357,7 +372,11 @@ export default function RequestDetail() {
                 <div className="flex items-start gap-4 flex-wrap">
                   <div style={{ width: '150px', flexShrink: 0 }}>
                     <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>Quantity</label>
-                    <input type="number" min="1" value={form.quantity} onChange={(e) => setField('quantity', parseInt(e.target.value) || 1)} disabled={!quantityEnabled} className="input-field" style={{ padding: '0.625rem 0.5rem', textAlign: 'center' }} />
+                    <input type="number" min="1" value={form.quantity} onChange={(e) => {
+                    const newQty = parseInt(e.target.value) || 1;
+                    setField('quantity', newQty);
+                    if (partialFulfilledQty > newQty) setPartialFulfilledQty(newQty);
+                    }} disabled={!quantityEnabled} className="input-field" style={{ padding: '0.625rem 0.5rem', textAlign: 'center' }} />
                   </div>
                   {showPartialAndExpense && (
                     <div style={{ width: '150px', flexShrink: 0 }}>
