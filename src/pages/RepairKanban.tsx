@@ -27,6 +27,11 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'Closed', label: 'Closed', color: '#16a34a' },
 ]
 
+const getTodayString = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function RepairKanban() {
   const { showToast } = useToast()
   const navigate = useNavigate()
@@ -41,13 +46,15 @@ export default function RepairKanban() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  // NEW: Get the appropriate date based on card status
-  // Uses "as any" so it never breaks even if a field name is missing in the type
+  // DATE LOGIC per column:
+  //   Open        -> reported date
+  //   In Progress -> expected completion date
+  //   Resolved    -> resolved date (= today, right after dragging in)
+  //   Closed      -> resolved date
   const getCardStatusDate = (card: RepairListItem): string => {
     const c = card as any
     switch (card.status) {
       case 'Open':
-        // Reported date for Open
         return formatDateOnly(
           c.reportedDate || c.reported_date ||
           c.createdDate || c.created_date ||
@@ -55,18 +62,17 @@ export default function RepairKanban() {
           c.requestDate || c.request_date
         )
       case 'In Progress':
-        // Expected completion for In Progress
         return formatDateOnly(
           c.expectedCompletion || c.expected_completion ||
           c.expectedDate || c.expected_date
         )
-        case 'Resolved':
-        case 'Closed':
+      case 'Resolved':
+      case 'Closed':
         return formatDateOnly(
-        c.resolvedDate || c.resolved_date ||
-        c.expectedCompletion || c.expected_completion ||
-        c.reportedDate || c.reported_date
-      )
+          c.resolvedDate || c.resolved_date ||
+          c.expectedCompletion || c.expected_completion ||
+          c.reportedDate || c.reported_date
+        )
       default:
         return formatDateOnly(
           c.expectedCompletion || c.reportedDate || c.createdDate
@@ -90,7 +96,6 @@ export default function RepairKanban() {
           let filteredCards = response
           if (dateFrom || dateTo) {
             filteredCards = response.filter((card: RepairListItem) => {
-              // UPDATED: filter by the status-based date
               const cardDate = getCardStatusDate(card)
               if (dateFrom && cardDate < dateFrom) return false
               if (dateTo && cardDate > dateTo) return false
@@ -122,7 +127,23 @@ export default function RepairKanban() {
     if (!targetCard) return
 
     const previousCards = cards
-    const optimisticCards = previousCards.map((card) => card.id === id ? { ...card, status } : card)
+    const isDone = status === 'Resolved' || status === 'Closed'
+    const today = getTodayString()
+
+    // Optimistic update: change status AND sync the resolved date so the card
+    // shows the correct date immediately (matches what the backend now saves).
+    const optimisticCards = previousCards.map((card) => {
+      if (card.id !== id) return card
+      const updated: any = { ...card, status }
+      if (isDone) {
+        updated.resolvedDate = today
+        updated.resolved_date = today
+      } else {
+        updated.resolvedDate = null
+        updated.resolved_date = null
+      }
+      return updated as RepairListItem
+    })
     setCards(optimisticCards)
 
     void (async () => {
@@ -240,7 +261,6 @@ export default function RepairKanban() {
                           </div>
                           <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>{card.reportedBy.split(' ')[0]}</span>
                         </div>
-                        {/* UPDATED: show the status-based date (reported / expected / resolved) */}
                         {getCardStatusDate(card) && (
                           <span className="text-xs" style={{ color: 'var(--on-surface-variant)' }}>
                             {getCardStatusDate(card)}
