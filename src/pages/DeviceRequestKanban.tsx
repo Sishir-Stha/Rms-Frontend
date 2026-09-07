@@ -71,17 +71,20 @@ export default function DeviceRequestKanban() {
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
-  const getCardStatusDate = useCallback((card: DeviceRequestListItem): string => {
-    switch (card.approvalStatus) {
-      case 'Requested': return getLocalDateString(card.requestDate)
-      case 'Pending': return getLocalDateString(card.recommendedDate) || getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
-      case 'Approved':
-      case 'Rejected': return getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
-      case 'Fulfilled': return getLocalDateString(card.fulfilledDate) || getLocalDateString(card.approvalDate) || getLocalDateString(card.requestDate)
-      default: return getLocalDateString(card.requestDate)
+  const getCardStatusDate = useCallback((card: any): string => {
+    switch (card.status) {
+      case 'Open':
+        return getLocalDateString(card.requestDate)
+      case 'InProgress':
+        return getLocalDateString(card.expectedCompletionDate) || getLocalDateString(card.requestDate)
+      case 'Resolved':
+      case 'Closed':
+        return getLocalDateString(card.resolvedDate) || getLocalDateString(card.requestDate)
+      default:
+        return getLocalDateString(card.requestDate)
     }
   }, [])
-
+  
   const visibleColumns = useMemo(() => {
     return COLUMNS.filter((col) => {
       if (currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com') {
