@@ -105,6 +105,7 @@ export default function DeviceRequestKanban() {
         const oneMonthAgo = new Date(today)
         oneMonthAgo.setMonth(today.getMonth() - 1)
         const oneMonthAgoStr = getLocalDateString(oneMonthAgo)
+        const firstOfMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
         const filteredCards = requestCards.filter((card) => {
           if (filterMode === 'all') return true
           const cardDate = getCardStatusDate(card)
@@ -114,7 +115,9 @@ export default function DeviceRequestKanban() {
             return true
           }
           if (filterMode === 'default') {
-            if (card.approvalStatus === 'Approved' || card.approvalStatus === 'Rejected' || card.approvalStatus === 'Fulfilled') {
+            if (card.approvalStatus === 'Rejected') {
+              if (cardDate && cardDate < firstOfMonthStr) return false
+            } else if (card.approvalStatus === 'Approved' || card.approvalStatus === 'Fulfilled') {
               if (cardDate && cardDate < oneMonthAgoStr) return false
             }
           }

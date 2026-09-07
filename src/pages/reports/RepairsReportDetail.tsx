@@ -1,36 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Banknote, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Banknote, Wrench } from 'lucide-react'
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
+import { fetchRepairs } from '../../services/repair.service'
 import { fetchDepartments } from '../../services/departments.service'
-import {
-  getRepairsDepartmentSummary,
-  getRepairCosts,
-  type RepairDepartmentSummaryRow,
-  type RepairCostRow as ApiRepairCostRow,
-} from '../../api/reports'
+import ReportDateFilter, { type ReportDateRange } from '../../components/ReportDateFilter'
 import type { RepairDepartmentOption } from '../../types/repair.types'
 
 const LOAD_REPORT_ERROR_MESSAGE = 'Unable to load reports right now.'
 
-interface RepairCostRow {
+interface CostRow {
   repairId: number
   id: string
   device: string
   department: string
+  status: string
+  resolvedDate: string
   cost: number
 }
 
-interface DepartmentMonthRow {
+interface DepartmentRow {
   department: string
   Open: number
   InProgress: number
@@ -38,225 +29,117 @@ interface DepartmentMonthRow {
   Closed: number
 }
 
-const formatMonthLabel = (key: string): string => {
-  const [y, m] = key.split('-').map(Number)
-  if (!y || !m) return key
-  const d = new Date(y, m - 1, 1)
-  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+const onlyDate = (v: any): string => {
+  if (!v) return ''
+  const s = String(v).trim()
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/)
+  return m ? m[1] : s.slice(0, 10)
 }
 
-const cell = (n: number) => (n === 0 ? '-' : n)
+const repairDate = (r: any): string => {
+  if (r.status === 'Resolved' || r.status === 'Closed') {
+    return onlyDate(r.resolvedDate ?? r.resolved_date) || onlyDate(r.reportedDate ?? r.reported_date)
+  }
+  return onlyDate(r.reportedDate ?? r.reported_date)
+}
 
-function DepartmentTick(props: any) {
-  const { x, y, payload } = props
-  const name = String(payload?.value ?? '')
-  const words = name.split(' ')
-
-  const lines: string[] = []
-  let current = ''
-  words.forEach((word) => {
-    const candidate = current ? `${current} ${word}` : word
-    if (candidate.length > 12 && current) {
-      lines.push(current)
-      current = word
-    } else {
-      current = candidate
-    }
-  })
-  if (current) lines.push(current)
-
-  return (
-    <g transform={`translate(${x},${y})`}>
-      {lines.map((line, index) => (
-        <text
-          key={index}
-          x={0}
-          y={0}
-          dy={index * 12 + 10}
-          textAnchor="middle"
-          fill="#879485"
-          fontSize={10}
-        >
-          {line}
-        </text>
-      ))}
-    </g>
-  )
+const cell = (n: number | string) => {
+  const value = Number(n) || 0
+  return value === 0 ? '-' : value
 }
 
 export default function RepairsReportDetail() {
   const navigate = useNavigate()
-  const [summaryData, setSummaryData] = useState<RepairDepartmentSummaryRow[]>([])
+  const [allRepairs, setAllRepairs] = useState<any[]>([])
   const [departments, setDepartments] = useState<RepairDepartmentOption[]>([])
-  const [repairCostRows, setRepairCostRows] = useState<RepairCostRow[]>([])
+  const [range, setRange] = useState<ReportDateRange | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const currentMonth = useMemo(() => {
-    const now = new Date()
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  }, [])
-
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth)
-
-  const mapCostsToUI = (apiRows: ApiRepairCostRow[]): RepairCostRow[] => {
-    return apiRows.map((r) => ({
-      repairId: r.repair_id,
-      id: `REP-${String(r.repair_id).padStart(3, '0')}`,
-      device: r.device_name,
-      department: r.department_name,
-      cost: Number(r.cost) || 0,
-    }))
-  }
-
   useEffect(() => {
     let isMounted = true
-
-    const loadReport = async () => {
+    const load = async () => {
       setIsLoading(true)
       setErrorMessage(null)
       try {
-        const [summaryRes, deptOptions] = await Promise.all([
-          getRepairsDepartmentSummary(),
+        const [rows, deptOptions] = await Promise.all([
+          fetchRepairs({ status: '', device_name: '' }),
           fetchDepartments().catch(() => [] as RepairDepartmentOption[]),
         ])
-
-        if (!summaryRes.success) {
-          throw new Error(summaryRes.message || LOAD_REPORT_ERROR_MESSAGE)
-        }
-
-        if (isMounted) {
-          setSummaryData(summaryRes.data || [])
-          setDepartments(Array.isArray(deptOptions) ? deptOptions : [])
-        }
+        if (!isMounted) return
+        setAllRepairs(rows || [])
+        setDepartments(Array.isArray(deptOptions) ? deptOptions : [])
       } catch (error) {
         if (!isMounted) return
-        setSummaryData([])
+        setAllRepairs([])
         setDepartments([])
         setErrorMessage(error instanceof Error ? error.message : LOAD_REPORT_ERROR_MESSAGE)
       } finally {
         if (isMounted) setIsLoading(false)
       }
     }
-
-    void loadReport()
+    void load()
     return () => { isMounted = false }
   }, [])
 
-  // Fetch costs for the selected month
-  useEffect(() => {
-    const loadCosts = async () => {
-      try {
-        const res = await getRepairCosts(selectedMonth)
-        if (res.success) {
-          setRepairCostRows(mapCostsToUI(res.data || []))
-        } else {
-          setRepairCostRows([])
-        }
-      } catch {
-        setRepairCostRows([])
-      }
-    }
-    loadCosts()
-  }, [selectedMonth])
-
-  const availableMonths = useMemo(() => {
-    const monthsSet = new Set<string>([currentMonth])
-    summaryData.forEach((row) => {
-      if (row.month) monthsSet.add(row.month)
+  const inRange = useMemo(() => {
+    if (!range) return allRepairs
+    return allRepairs.filter((r) => {
+      const d = repairDate(r)
+      if (!d) return false
+      if (range.from && d < range.from) return false
+      if (range.to && d > range.to) return false
+      return true
     })
+  }, [allRepairs, range])
 
-    const allKeys = Array.from(monthsSet).sort().reverse()
-    if (allKeys.length === 0) return [currentMonth]
+  const costRows = useMemo<CostRow[]>(() => {
+    return inRange
+      .filter((r) => r.status === 'Resolved' || r.status === 'Closed')
+      .map((r) => ({
+        repairId: r.repairId ?? r.repair_id,
+        id: r.id ?? `R-${r.repairId ?? r.repair_id}`,
+        device: r.device ?? r.device_name ?? '-',
+        department: r.department ?? r.department_name ?? '-',
+        status: r.status,
+        resolvedDate: onlyDate(r.resolvedDate ?? r.resolved_date),
+        cost: Number(r.cost ?? r.costs ?? 0),
+      }))
+      .sort((a, b) => b.repairId - a.repairId)
+  }, [inRange])
 
-    const earliest = allKeys[allKeys.length - 1]
-    const months: string[] = []
-    let [y, m] = currentMonth.split('-').map(Number)
-    const [ey, em] = earliest.split('-').map(Number)
+  const totalCost = useMemo(() => costRows.reduce((s, r) => s + r.cost, 0), [costRows])
 
-    while (y > ey || (y === ey && m >= em)) {
-      months.push(`${y}-${String(m).padStart(2, '0')}`)
-      m -= 1
-      if (m === 0) { m = 12; y -= 1 }
-    }
-    return months
-  }, [summaryData, currentMonth])
-
-  // Always include EVERY department so none are dropped
-  const chartRows = useMemo<DepartmentMonthRow[]>(() => {
-    const namesFromTable = departments.map((d) => d.department_name)
-    const namesFromSummary = Array.from(new Set(
-      summaryData
-        .filter((row) => row.month === selectedMonth)
-        .map((row) => row.department_name)
-    ))
-
-    const allNamesSet = new Set<string>()
-    namesFromTable.forEach((n) => allNamesSet.add(n))
-    namesFromSummary.forEach((n) => {
-      if (n && !Array.from(allNamesSet).some((existing) => existing.toLowerCase() === n.toLowerCase())) {
-        allNamesSet.add(n)
-      }
-    })
-
-    const allNames = Array.from(allNamesSet).sort()
-
-    return allNames.map((name) => {
-      const summaryRow = summaryData.find(
-        (r) => r.month === selectedMonth && r.department_name.toLowerCase() === name.toLowerCase()
-      )
-
+  // CHART ROWS: ALWAYS include EVERY department (even with zero data)
+  const chartRows = useMemo<DepartmentRow[]>(() => {
+    const names = new Set<string>()
+    departments.forEach((d) => names.add(d.department_name))
+    inRange.forEach((r) => names.add(r.department ?? r.department_name ?? '-'))
+    return Array.from(names).sort().map((name) => {
+      const rows = inRange.filter((r) => (r.department ?? r.department_name ?? '-') === name)
       return {
         department: name,
-        Open: Number(summaryRow?.Open) || 0,
-        InProgress: Number(summaryRow?.InProgress) || 0,
-        Resolved: Number(summaryRow?.Resolved) || 0,
-        Closed: Number(summaryRow?.Closed) || 0,
+        Open: rows.filter((r) => r.status === 'Open').length,
+        InProgress: rows.filter((r) => r.status === 'In Progress' || r.status === 'InProgress').length,
+        Resolved: rows.filter((r) => r.status === 'Resolved').length,
+        Closed: rows.filter((r) => r.status === 'Closed').length,
       }
     })
-  }, [departments, summaryData, selectedMonth])
-
-  const totalCost = useMemo(
-    () => repairCostRows.reduce((sum, row) => sum + row.cost, 0),
-    [repairCostRows],
-  )
+  }, [departments, inRange])
 
   return (
     <div className="p-6 space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/reports')} className="btn-ghost p-2 rounded-xl">
-          <ArrowLeft size={18} />
-        </button>
-        <div>
-          <h2 className="font-display font-bold text-xl text-on-surface">
-            Repairs Report
-          </h2>
-          <p className="text-sm text-on-surface-variant">
-            Repair counts and costs by department
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/reports')} className="btn-ghost p-2 rounded-xl">
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h2 className="font-display font-bold text-xl text-on-surface">Monthly Repairs Report</h2>
+            <p className="text-sm text-on-surface-variant">Repair counts and costs by department</p>
+          </div>
         </div>
-      </div>
-
-      {/* Month selector at top, same as Device Request Report */}
-      <div className="section-card">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-semibold uppercase tracking-wider mr-1" style={{ color: 'var(--muted)' }}>
-            Report Month
-          </span>
-          {availableMonths.map((month) => (
-            <button
-              key={month}
-              onClick={() => setSelectedMonth(month)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                selectedMonth === month
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface-container text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              {formatMonthLabel(month)}
-            </button>
-          ))}
-        </div>
+        <ReportDateFilter onApply={(r) => setRange(r)} />
       </div>
 
       {isLoading ? (
@@ -267,62 +150,96 @@ export default function RepairsReportDetail() {
           </div>
         </div>
       ) : errorMessage ? (
-        <div className="section-card text-sm" style={{ color: 'var(--error-text)' }}>
-          {errorMessage}
-        </div>
+        <div className="section-card text-sm" style={{ color: 'var(--error-text)' }}>{errorMessage}</div>
       ) : (
         <>
-          <div className="section-card">
+          {/* 1) COST TABLE FIRST (top) */}
+          <div className="section-card overflow-hidden">
             <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(98,223,125,0.12)' }}
-              >
-                <BarChart3 size={18} style={{ color: '#62df7d' }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(98,223,125,0.12)' }}>
+                <Banknote size={18} style={{ color: '#62df7d' }} />
               </div>
               <div>
-                <h3 className="font-display font-bold text-base text-on-surface">
-                  Department Status Chart — {formatMonthLabel(selectedMonth)}
-                </h3>
-                <p className="text-sm text-on-surface-variant">
-                  Repair report data visualized by department for the selected month
-                </p>
+                <h3 className="font-display font-bold text-base text-on-surface">Repair Cost Table (Resolved / Closed)</h3>
+                <p className="text-sm text-on-surface-variant">Costs of resolved repairs in the selected range</p>
               </div>
             </div>
+            <div className="table-container">
+              <table className="data-table w-full">
+                <thead>
+                  <tr>
+                    <th>Repair ID</th>
+                    <th>Device</th>
+                    <th>Department</th>
+                    <th>Status</th>
+                    <th>Resolved Date</th>
+                    <th>Cost [Rs.]</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {costRows.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-12 text-on-surface-variant">No resolved repair cost data for the selected range</td></tr>
+                  ) : (
+                    costRows.map((row) => (
+                      <tr key={row.repairId}>
+                        <td className="font-medium text-on-surface">{row.id}</td>
+                        <td>{row.device}</td>
+                        <td>{row.department}</td>
+                        <td>{row.status}</td>
+                        <td>{row.resolvedDate || '-'}</td>
+                        <td>{row.cost.toLocaleString()}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {costRows.length > 0 && (
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border-color)' }}>
+                      <td colSpan={5} className="font-semibold text-on-surface text-left">Total</td>
+                      <td className="font-semibold">{totalCost.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
 
+          {/* 2) CHART (all departments always visible) */}
+          <div className="section-card">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(173,198,255,0.14)' }}>
+                <Wrench size={18} style={{ color: '#adc6ff' }} />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-base text-on-surface">Department Repairs Chart</h3>
+                <p className="text-sm text-on-surface-variant">Repair counts by department for the selected range</p>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartRows}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(62,74,61,0.15)" />
-                <XAxis
-                  dataKey="department"
-                  interval={0}
-                  height={50}
-                  tick={<DepartmentTick />}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis tick={{ fill: '#879485', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="department" interval={0} height={50} axisLine={false} tickLine={false} tick={{ fill: '#879485', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#879485', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: '12px', color: '#879485' }} />
-                <Bar dataKey="Open" stackId="repairs" fill="#f59e0b" />
+                <Bar dataKey="Open" stackId="repairs" fill="#879485" />
                 <Bar dataKey="InProgress" stackId="repairs" fill="#3b82f6" />
-                <Bar dataKey="Resolved" stackId="repairs" fill="#879485" />
-                <Bar dataKey="Closed" stackId="repairs" fill="#62df7d" />
+                <Bar dataKey="Resolved" stackId="repairs" fill="#f59e0b" />
+                <Bar dataKey="Closed" stackId="repairs" fill="#16a34a" />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
+          {/* 3) DEPARTMENT TABLE */}
           <div className="section-card overflow-hidden">
-            <h3 className="font-display font-bold text-base text-on-surface mb-4">
-              Department Repairs Table — {formatMonthLabel(selectedMonth)}
-            </h3>
+            <h3 className="font-display font-bold text-base text-on-surface mb-4">Department Repairs Table</h3>
             <div className="table-container">
               <table className="data-table w-full">
                 <thead>
                   <tr>
                     <th>Department</th>
                     <th>Open</th>
-                    <th>InProgress</th>
+                    <th>In Progress</th>
                     <th>Resolved</th>
                     <th>Closed</th>
                   </tr>
@@ -338,65 +255,6 @@ export default function RepairsReportDetail() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="section-card overflow-hidden">
-            <div className="flex items-center gap-3 mb-4">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(98,223,125,0.12)' }}
-              >
-                <Banknote size={18} style={{ color: '#62df7d' }} />
-              </div>
-              <div>
-                <h3 className="font-display font-bold text-base text-on-surface">
-                  Repair Cost Table (Resolved / Closed) — {formatMonthLabel(selectedMonth)}
-                </h3>
-                <p className="text-sm text-on-surface-variant">
-                  Repair costs for resolved and closed repairs of the selected month
-                </p>
-              </div>
-            </div>
-            <div className="table-container">
-              <table className="data-table w-full">
-                <thead>
-                  <tr>
-                    <th>Repair ID</th>
-                    <th>Device Name</th>
-                    <th>Department</th>
-                    <th>Cost [Rs.]</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {repairCostRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="text-center py-12 text-on-surface-variant">
-                        No resolved or closed repair data for {formatMonthLabel(selectedMonth)}
-                      </td>
-                    </tr>
-                  ) : (
-                    repairCostRows.map((row) => (
-                      <tr key={row.repairId}>
-                        <td className="font-medium" style={{ color: 'var(--secondary)' }}>
-                          <code>{row.id}</code>
-                        </td>
-                        <td className="font-medium text-on-surface">{row.device}</td>
-                        <td>{row.department}</td>
-                        <td>{row.cost.toLocaleString()}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                {repairCostRows.length > 0 && (
-                  <tfoot>
-                    <tr style={{ borderTop: '2px solid var(--border-color)' }}>
-                      <td colSpan={3} className="font-semibold text-on-surface">Total</td>
-                      <td className="font-semibold">{totalCost.toLocaleString()}</td>
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
           </div>

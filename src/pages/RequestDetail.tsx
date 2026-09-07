@@ -30,6 +30,7 @@ interface RequestDetailFormState {
   deviceType: string; brand: string; reason: string; requestDate: string; approvalStatus: RequestApprovalStatus;
   approvedById: number | null; approvedByName: string | null; approvalDate: string; priority: Priority;
   quantity: number; is_deleted: boolean; original_request_id: number | null; split_info: string | null;
+  expenseWithoutVat: number; expenseWithVat: number;
 }
 
 interface InfoRowProps { icon: LucideIcon; label: string; value: string | number | null | undefined }
@@ -54,7 +55,9 @@ const createRequestForm = (r: any): RequestDetailFormState => ({
   deviceType: r.deviceType, brand: r.brand || '', reason: r.reason, requestDate: formatDateInputValue(r.requestDate),
   approvalStatus: r.approvalStatus, approvedById: r.approvedById, approvedByName: r.approvedBy,
   approvalDate: formatDateInputValue(r.approvalDate), priority: r.priority, quantity: r.quantity,
-  is_deleted: r.isDeleted ?? false, original_request_id: r.originalRequestId ?? null, split_info: r.splitInfo ?? null
+  is_deleted: r.isDeleted ?? false, original_request_id: r.originalRequestId ?? null, split_info: r.splitInfo ?? null,
+  expenseWithoutVat: Number(r.expenseWithoutVat || r.expense_without_vat || 0),
+  expenseWithVat: Number(r.expenseWithVat || r.expense_with_vat || 0),
 });
 
 function InfoRow({ icon: Icon, label, value }: InfoRowProps) {
@@ -102,6 +105,7 @@ export default function RequestDetail() {
   const [history, setHistory] = useState<any[]>([]);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [partialFulfilledQty, setPartialFulfilledQty] = useState<number>(0);
+  const [expenseWithoutVatInput, setExpenseWithoutVatInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -116,6 +120,11 @@ export default function RequestDetail() {
   const canActOnRec = currentUser?.email ? canActOnRecommended(currentUser.email) : false;
   const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : false;
   const requestedActionLabel = 'Recommend';
+
+  // EXPENSE PERMISSION: Only Anjana and Sishir can edit "Expense Without VAT"
+  const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com';
+  const isSishir = currentUser?.email?.trim().toLowerCase() === 'sishir@yetiairlines.com';
+  const canEditExpenseWithoutVat = isAnjana || isSishir;
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -136,6 +145,8 @@ export default function RequestDetail() {
         setForm(createRequestForm(requestDetail));
         setHistory(historyData);
         setPartialFulfilledQty((requestDetail as any).plannedFulfilledQty ?? requestDetail.quantity ?? 0);
+        const loadedWithoutVat = Number((requestDetail as any).expenseWithoutVat ?? (requestDetail as any).expense_without_vat ?? 0);
+        setExpenseWithoutVatInput(loadedWithoutVat > 0 ? String(loadedWithoutVat) : '');
       } catch (error) {
         if (abortController.signal.aborted) return;
         setForm(null); setErrorMessage(error instanceof Error ? error.message : 'Unable to load request detail.');
@@ -184,6 +195,11 @@ export default function RequestDetail() {
   const showPartialAndExpense = form.approvalStatus === 'Approved' || form.approvalStatus === 'Fulfilled';
   const partialEditable = form.approvalStatus === 'Approved' && (partialAndExpenseEditable || canFulfillRequest);
 
+  // EXPENSE EDITABLE: Only in Approved or Fulfilled, only for Anjana/Sishir for "Without VAT"
+  // "With VAT" is ALWAYS read-only (auto-calculated)
+  // Anjana cannot edit in Fulfilled status
+  const expenseWithoutVatEditable = showPartialAndExpense && canEditExpenseWithoutVat && !(isAnjana && form.approvalStatus === 'Fulfilled');
+
   const setField = <Key extends keyof RequestDetailFormState>(key: Key, value: RequestDetailFormState[Key]) => {
     setForm((cur) => (cur ? { ...cur, [key]: value } : cur));
   };
@@ -207,7 +223,9 @@ export default function RequestDetail() {
         requested_for: form.requestedFor.trim(), request_date: toNullableDate(form.requestDate),
         approval_status: form.approvalStatus, approved_by: form.approvedById, approval_date: toNullableDate(form.approvalDate),
         planned_fulfilled_qty: form.approvalStatus === 'Approved' ? partialFulfilledQty : null,
-        updated_by: currentUser?.id ?? null
+        updated_by: currentUser?.id ?? null,
+        expense_without_vat: showPartialAndExpense ? form.expenseWithoutVat : null,
+        expense_with_vat: showPartialAndExpense ? form.expenseWithVat : null,
       } as any);
       const refreshed = await fetchDeviceRequestById(form.requestId);
       setForm(createRequestForm(refreshed));
@@ -278,7 +296,7 @@ export default function RequestDetail() {
   const fullTimeline = [
     ...timeline.map((t) => ({ ...t, sortKey: t.date || '' })),
     ...history.map((h: any) => ({
-      color: h.action === 'REQUEST_SPLIT' ? '#0891b2' : h.action === 'SOFT_DELETE' ? 'var(--error-text)' : (h.action === 'QUANTITY_UPDATE' || h.action === 'PARTIAL_FULFILLED_UPDATE') ? '#3b82f6' : 'var(--primary)',
+      color: h.action === 'REQUEST_SPLIT' ? '#0891b2' : h.action === 'SOFT_DELETE' ? 'var(--error-text)' : (h.action === 'QUANTITY_UPDATE' || h.action === 'PARTIAL_FULFILLED_UPDATE' || h.action === 'EXPENSE_UPDATE') ? '#3b82f6' : 'var(--primary)',
       title: h.notes || `${h.action.replace(/_/g, ' ')} by ${h.performed_by_name || 'System'}`,
       date: h.performed_at,
       sortKey: h.performed_at || '',
@@ -360,6 +378,44 @@ export default function RequestDetail() {
                 </div>
               </div>
               <div className="sm:col-span-2"><label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>Reason / Justification</label><textarea value={form.reason} onChange={(e) => setField('reason', e.target.value)} rows={3} placeholder="Why is this device needed?" disabled={!deviceDetailsEditable} className="input-field resize-none" /></div>
+
+              {showPartialAndExpense && (
+                <>
+                                    <div>
+                    <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>Expense Without VAT (Rs.)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={expenseWithoutVatInput}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setExpenseWithoutVatInput(raw);
+                        const val = parseFloat(raw) || 0;
+                        setField('expenseWithoutVat', val);
+                        setField('expenseWithVat', Math.round(val * 1.13 * 100) / 100);
+                      }}
+                      placeholder="0.00"
+                      disabled={!expenseWithoutVatEditable}
+                      className="input-field"
+                      style={{ opacity: expenseWithoutVatEditable ? 1 : 0.7 }}
+                    />
+                  </div>
+                  <div>
+                    <label className={FIELD_LABEL} style={{ color: 'var(--muted)' }}>Expense With VAT 13% (Rs.)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.expenseWithVat}
+                      disabled={true}
+                      className="input-field"
+                      style={{ opacity: 0.6, cursor: 'not-allowed', background: 'var(--surface-low)' }}
+                    />
+
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -398,6 +454,8 @@ export default function RequestDetail() {
                 <InfoRow icon={Package} label="Total Qty" value={form.quantity} />
                 <InfoRow icon={Package} label="Partial (Fulfilled)" value={partialFulfilledQty} />
                 <InfoRow icon={Package} label="Remaining" value={Math.max(0, form.quantity - partialFulfilledQty)} />
+                <InfoRow icon={Tag} label="Expense Without VAT" value={`Rs. ${form.expenseWithoutVat.toFixed(2)}`} />
+                <InfoRow icon={Tag} label="Expense With VAT" value={`Rs. ${form.expenseWithVat.toFixed(2)}`} />
               </>
             )}
             <div className="flex items-start gap-3 pt-2.5">

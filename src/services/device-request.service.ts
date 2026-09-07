@@ -127,6 +127,8 @@ const mapDeviceRequestItem = (request: DeviceRequestApiItem): DeviceRequestListI
     fulfilledDate: request.fulfilled_date ? request.fulfilled_date.slice(0, 10) : null,
     createdAt: request.created_at,
     updatedAt: request.updated_at,
+    expenseWithoutVat: Number(reqAny.expense_without_vat ?? 0),
+    expenseWithVat: Number(reqAny.expense_with_vat ?? 0),
     ...(reqAny.is_deleted !== undefined ? { isDeleted: reqAny.is_deleted } : {}),
     ...(reqAny.original_request_id !== undefined ? { originalRequestId: reqAny.original_request_id } : {}),
     ...(reqAny.split_info !== undefined ? { splitInfo: reqAny.split_info } : {}),
