@@ -47,6 +47,41 @@ const cell = (n: number | string) => {
   return value === 0 ? '-' : value
 }
 
+function DepartmentTick(props: any) {
+  const { x, y, payload } = props
+  const name = String(payload?.value ?? '')
+  const words = name.split(' ')
+  const lines: string[] = []
+  let current = ''
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word
+    if (candidate.length > 12 && current) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  })
+  if (current) lines.push(current)
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {lines.map((line, index) => (
+        <text
+          key={index}
+          x={0}
+          y={0}
+          dy={index * 12 + 10}
+          textAnchor="middle"
+          fill="#879485"
+          fontSize={10}
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  )
+}
+
 export default function DeviceReportDetail() {
   const navigate = useNavigate()
   const [allRequests, setAllRequests] = useState<DeviceRequestListItem[]>([])
@@ -226,7 +261,7 @@ export default function DeviceReportDetail() {
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={chartRows}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(62,74,61,0.15)" />
-                <XAxis dataKey="department" interval={0} height={50} axisLine={false} tickLine={false} tick={{ fill: '#879485', fontSize: 10 }} />
+                <XAxis dataKey="department" interval={0} height={70} axisLine={false} tickLine={false} tick={<DepartmentTick />} />
                 <YAxis tick={{ fill: '#879485', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: '12px', color: '#879485' }} />
