@@ -1,59 +1,47 @@
+import { fetchRepairs } from './repair.service'
+import { fetchDeviceRequests } from './device-request.service'
 import type { DashboardMetrics } from '../types/dashboard.types'
 
-const API_BASE_URL = 'http://192.168.5.59:4000/api/v1'
-
-interface DashboardMetricsEnvelope {
-  data: unknown
+const onlyDate = (v: any): string => {
+  if (!v) return ''
+  const s = String(v).trim()
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/)
+  return m ? m[1] : s.slice(0, 10)
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
-
-const isDashboardMetrics = (value: unknown): value is DashboardMetrics => {
-  if (!isRecord(value)) {
-    return false
-  }
-
-  return (
-    typeof value.totalRepairs === 'number' &&
-    typeof value.pendingRepairs === 'number' &&
-    typeof value.deviceRequests === 'number' &&
-    typeof value.resolvedToday === 'number'
-  )
+const getTodayString = (): string => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const isDashboardMetricsEnvelope = (
-  value: unknown,
-): value is DashboardMetricsEnvelope => isRecord(value) && 'data' in value
+export async function fetchDashboardMetrics(signal?: AbortSignal): Promise<DashboardMetrics> {
+  const [repairs, requests] = await Promise.all([
+    fetchRepairs({ status: '', device_name: '' }, signal),
+    fetchDeviceRequests({ approvalStatus: '', deviceType: '' }, signal),
+  ])
 
-export async function fetchDashboardMetrics(
-  signal?: AbortSignal,
-): Promise<DashboardMetrics> {
-  const response = await fetch(`${API_BASE_URL}/dashboard/metrics`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
-    signal,
-  })
+  const today = getTodayString()
 
-  if (!response.ok) {
-    throw new Error(`Failed to load dashboard metrics (${response.status})`)
+  // PENDING REPAIRS = "In Progress" entries from the Repair Kanban
+  const pendingRepairs = repairs.filter(
+    (r: any) => r.status === 'In Progress' || r.status === 'InProgress',
+  ).length
+
+  // DEVICE REQUESTS = active only (deleted / split-original entries excluded)
+  const deviceRequests = requests.filter(
+    (r: any) => r.isDeleted !== true && r.is_deleted !== true,
+  ).length
+
+  // RESOLVED TODAY = repairs resolved/closed with resolved date = today
+  const resolvedToday = repairs.filter((r: any) => {
+    const resolvedOn = onlyDate(r.resolvedDate ?? r.resolved_date)
+    return (r.status === 'Resolved' || r.status === 'Closed') && resolvedOn === today
+  }).length
+
+  return {
+    totalRepairs: repairs.length,
+    pendingRepairs,
+    deviceRequests,
+    resolvedToday,
   }
-
-  const payload: unknown = await response.json()
-
-  if (isDashboardMetrics(payload)) {
-    return payload
-  }
-
-  if (
-    isDashboardMetricsEnvelope(payload) &&
-    isDashboardMetrics(payload.data)
-  ) {
-    return payload.data
-  }
-
-  throw new Error('Dashboard metrics response is invalid')
 }
