@@ -166,9 +166,10 @@ export default function DeviceRequestKanban() {
 
   const isAnjana = userKey === 'anjana'
 
-  const canDragCard = (status: RequestApprovalStatus): boolean => {
+    const canDragCard = (status: RequestApprovalStatus): boolean => {
     const email = currentUser?.email
     if (!canManageKanban(email)) return false
+    if (userKey === 'other') return false
     if (userKey === 'anjana' && (status === 'Pending' || status === 'Rejected')) return false
     if (userKey === 'sudharshan' && status === 'Fulfilled') return false
     return COLUMNS.some((col) => canMoveKanbanStatus(email, status, col.id))

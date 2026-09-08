@@ -94,7 +94,7 @@ export default function RequestDetail() {
   const { currentUser } = useAuth();
   const { showToast } = useToast();
   const viewOnly = isRequestViewerOnly(currentUser?.email);
-  const deviceDetailsEditable = canEditDeviceDetails(currentUser?.email);
+    const deviceDetailsBase = canEditDeviceDetails(currentUser?.email);
   const requesterInfoEditable = canEditRequesterInformation(currentUser?.email);
   const quantityEditable = canUpdateDeviceQuantity(currentUser?.email);
   const partialAndExpenseEditable = canEditPartialAndExpense(currentUser?.email);
@@ -121,10 +121,19 @@ export default function RequestDetail() {
   const canDeleteRequest = currentUser?.email ? canDeleteDeviceRequest(currentUser.email) : false;
   const requestedActionLabel = 'Recommend';
 
-  // EXPENSE PERMISSION: Only Anjana and Sishir can edit "Expense Without VAT"
   const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com';
   const isSishir = currentUser?.email?.trim().toLowerCase() === 'sishir@yetiairlines.com';
   const canEditExpenseWithoutVat = isAnjana || isSishir;
+
+  const userEmailLc = (currentUser?.email || '').trim().toLowerCase();
+  const userNameLc = (currentUser?.name || '').trim().toLowerCase();
+  const isUmesh = userEmailLc.includes('umesh') || userNameLc.includes('umesh');
+  const isSpecialUser =
+    userEmailLc === 'anjana@yetiairlines.com' || userNameLc.includes('anjana') ||
+    userEmailLc === 'sishir@yetiairlines.com' || userNameLc.includes('sishir') ||
+    userEmailLc === 'sudharshan@yetiairlines.com' || userNameLc.includes('sudharshan') ||
+    isUmesh;
+  const isOtherUser = !isSpecialUser;
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -189,15 +198,18 @@ export default function RequestDetail() {
     </div>
   );
 
-  const isFulfilledViewOnly = currentUser?.email?.trim().toLowerCase() === 'sudharshan@yetiairlines.com' && form.approvalStatus === 'Fulfilled';
-  const quantityOnlyEditable = quantityEditable && form.approvalStatus === 'Pending';
-  const quantityEnabled = !isFulfilledViewOnly && (deviceDetailsEditable || quantityOnlyEditable);
-  const showPartialAndExpense = form.approvalStatus === 'Approved' || form.approvalStatus === 'Fulfilled';
-  const partialEditable = form.approvalStatus === 'Approved' && (partialAndExpenseEditable || canFulfillRequest);
+    const isFulfilledViewOnly = currentUser?.email?.trim().toLowerCase() === 'sudharshan@yetiairlines.com' && form.approvalStatus === 'Fulfilled';
 
-  // EXPENSE EDITABLE: Only in Approved or Fulfilled, only for Anjana/Sishir for "Without VAT"
-  // "With VAT" is ALWAYS read-only (auto-calculated)
-  // Anjana cannot edit in Fulfilled status
+ 
+  const lockedStatuses: RequestApprovalStatus[] = ['Pending', 'Approved', 'Rejected', 'Fulfilled'];
+  const lockDeviceEdits = (isUmesh || isOtherUser) && lockedStatuses.includes(form.approvalStatus);
+  const deviceDetailsEditable = deviceDetailsBase && !lockDeviceEdits;
+
+  const quantityOnlyEditable = quantityEditable && form.approvalStatus === 'Pending';
+  const quantityEnabled = !isFulfilledViewOnly && (deviceDetailsEditable || quantityOnlyEditable) && !lockDeviceEdits;
+  const showPartialAndExpense = form.approvalStatus === 'Approved' || form.approvalStatus === 'Fulfilled';
+  const partialEditable = form.approvalStatus === 'Approved' && (partialAndExpenseEditable || canFulfillRequest) && !lockDeviceEdits;
+
   const expenseWithoutVatEditable = showPartialAndExpense && canEditExpenseWithoutVat && !(isAnjana && form.approvalStatus === 'Fulfilled');
 
   const setField = <Key extends keyof RequestDetailFormState>(key: Key, value: RequestDetailFormState[Key]) => {
