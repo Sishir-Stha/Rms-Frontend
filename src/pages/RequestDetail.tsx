@@ -249,9 +249,11 @@ export default function RequestDetail() {
       } as any);
       const refreshed = await fetchDeviceRequestById(form.requestId);
       setForm(createRequestForm(refreshed));
-      // Sync partial from refreshed data
       const refreshedPartial = (refreshed as any).plannedFulfilledQty ?? refreshed.quantity ?? 0;
       setPartialFulfilledQty(Math.min(refreshedPartial, refreshed.quantity));
+      const latestHistory = await fetchRequestHistory(form.requestId).catch(() => []);
+      setHistory(latestHistory);
+
       return true;
     } catch (error) { showToast(error instanceof Error ? error.message : 'Failed to update device request.', 'error'); return false; }
   };
