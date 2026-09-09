@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Calendar, X } from 'lucide-react'
 
 export type QuickFilter =
@@ -36,6 +36,19 @@ export default function DateRangeFilterKanban({
 }: DateRangeFilterKanbanProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // FIX: local drafts so picking From/To never triggers onApply (no refresh, popover stays open)
+  const [draftFrom, setDraftFrom] = useState(fromDate)
+  const [draftTo, setDraftTo] = useState(toDate)
+
+  // Sync drafts from applied values each time the popover opens
+  useEffect(() => {
+    if (isOpen) {
+      setDraftFrom(fromDate)
+      setDraftTo(toDate)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   const formatDate = (date: Date): string => {
     return date.toISOString().split('T')[0]
@@ -90,34 +103,26 @@ export default function DateRangeFilterKanban({
     setIsOpen(false)
   }
 
+  // FIX: drafts only — NO onApply here
   const handleCustomDateChange = (
     field: 'from' | 'to',
     value: string
   ) => {
     if (field === 'from') {
-      onApply(
-        'custom',
-        value,
-        toDate,
-        null
-      )
+      setDraftFrom(value)
     } else {
-      onApply(
-        'custom',
-        fromDate,
-        value,
-        null
-      )
+      setDraftTo(value)
     }
   }
 
+  // FIX: apply uses the drafts
   const handleApply = () => {
-    if (!fromDate || !toDate) return
+    if (!draftFrom || !draftTo) return
 
     onApply(
       'custom',
-      fromDate,
-      toDate,
+      draftFrom,
+      draftTo,
       null
     )
 
@@ -193,7 +198,7 @@ export default function DateRangeFilterKanban({
             )}
           </div>
 
-          {/* Quick Filters - Only 4 options */}
+          
           <div className="grid grid-cols-2 gap-2 mb-4">
             {Object.entries(QUICK_FILTER_LABELS).map(([key, label]) => (
               <button
@@ -215,7 +220,7 @@ export default function DateRangeFilterKanban({
             ))}
           </div>
 
-          {/* Custom Date Range - Still Available */}
+         
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className="block text-xs font-medium text-on-surface-variant mb-1.5">
@@ -224,7 +229,7 @@ export default function DateRangeFilterKanban({
 
               <input
                 type="date"
-                value={fromDate}
+                value={draftFrom}
                 onChange={(e) =>
                   handleCustomDateChange(
                     'from',
@@ -242,7 +247,7 @@ export default function DateRangeFilterKanban({
 
               <input
                 type="date"
-                value={toDate}
+                value={draftTo}
                 onChange={(e) =>
                   handleCustomDateChange(
                     'to',
@@ -258,7 +263,7 @@ export default function DateRangeFilterKanban({
             <button
               type="button"
               onClick={handleApply}
-              disabled={!fromDate || !toDate}
+              disabled={!draftFrom || !draftTo}
               className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
             >
               Apply Custom Dates

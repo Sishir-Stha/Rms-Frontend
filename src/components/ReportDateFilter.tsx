@@ -1,130 +1,228 @@
-import { useEffect, useRef, useState } from 'react'
-import { CalendarDays } from 'lucide-react'
-
-export type ReportRangePreset = 'thisMonth' | 'lastMonth' | 'thisWeek' | 'custom'
+import { useState, useRef, useEffect } from 'react'
+import { Calendar, X } from 'lucide-react'
 
 export interface ReportDateRange {
   from: string
   to: string
-  preset: ReportRangePreset
+}
+
+type Preset = 'this-month' | 'last-month' | 'this-week'
+
+interface ReportDateFilterProps {
+  onApply: (range: ReportDateRange | null) => void
+}
+
+const PRESET_LABELS: Record<Preset, string> = {
+  'this-month': 'This Month',
+  'last-month': 'Last Month',
+  'this-week': 'This Week',
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const toStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-export const getThisMonthRange = (): { from: string; to: string } => {
-  const now = new Date()
-  return {
-    from: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`,
-    to: toStr(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+const getPresetDates = (preset: Preset): ReportDateRange => {
+  const today = new Date()
+  if (preset === 'this-month') {
+    return { from: `${today.getFullYear()}-${pad(today.getMonth() + 1)}-01`, to: toStr(today) }
   }
-}
-
-export const getLastMonthRange = (): { from: string; to: string } => {
-  const now = new Date()
-  return {
-    from: toStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-    to: toStr(new Date(now.getFullYear(), now.getMonth(), 0)),
+  if (preset === 'last-month') {
+    const first = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const last = new Date(today.getFullYear(), today.getMonth(), 0)
+    return { from: toStr(first), to: toStr(last) }
   }
+  // this-week: Monday of current week → today
+  const day = (today.getDay() + 6) % 7
+  const monday = new Date(today)
+  monday.setDate(today.getDate() - day)
+  return { from: toStr(monday), to: toStr(today) }
 }
 
-export const getThisWeekRange = (): { from: string; to: string } => {
-  const now = new Date()
-  const diffToMonday = (now.getDay() + 6) % 7
-  const monday = new Date(now)
-  monday.setDate(now.getDate() - diffToMonday)
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  return { from: toStr(monday), to: toStr(sunday) }
-}
+export default function ReportDateFilter({ onApply }: ReportDateFilterProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-interface Props {
-  onApply: (range: ReportDateRange) => void
-}
+  const [active, setActive] = useState<Preset | 'custom' | null>('this-month')
+  const [appliedFrom, setAppliedFrom] = useState('')
+  const [appliedTo, setAppliedTo] = useState('')
 
-export default function ReportDateFilter({ onApply }: Props) {
-  const [open, setOpen] = useState(false)
-  const [preset, setPreset] = useState<ReportRangePreset>('thisMonth')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  // Drafts: picking From/To never applies until Apply is clicked
+  const [draftFrom, setDraftFrom] = useState('')
+  const [draftTo, setDraftTo] = useState('')
 
-  const label =
-    preset === 'thisMonth' ? 'This Month' :
-    preset === 'lastMonth' ? 'Last Month' :
-    preset === 'thisWeek' ? 'This Week' : 'Custom'
-
+  // Default = This Month, applied once on mount
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  // Default = This Month on first render
-  useEffect(() => {
-    const r = getThisMonthRange()
-    onApply({ from: r.from, to: r.to, preset: 'thisMonth' })
+    const d = getPresetDates('this-month')
+    setActive('this-month')
+    setAppliedFrom(d.from)
+    setAppliedTo(d.to)
+    onApply(d)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applyPreset = (p: ReportRangePreset) => {
-    setPreset(p)
-    if (p === 'thisMonth') { const r = getThisMonthRange(); onApply({ from: r.from, to: r.to, preset: p }); }
-    if (p === 'lastMonth') { const r = getLastMonthRange(); onApply({ from: r.from, to: r.to, preset: p }); }
-    if (p === 'thisWeek') { const r = getThisWeekRange(); onApply({ from: r.from, to: r.to, preset: p }); }
+  // Sync drafts from applied values when popover opens
+  useEffect(() => {
+    if (isOpen) {
+      setDraftFrom(appliedFrom)
+      setDraftTo(appliedTo)
+    }
+  }, [isOpen, appliedFrom, appliedTo])
+
+  const handlePreset = (preset: Preset) => {
+    const d = getPresetDates(preset)
+    setActive(preset)
+    setAppliedFrom(d.from)
+    setAppliedTo(d.to)
+    onApply(d)
+    setIsOpen(false)
   }
 
-  const applyCustom = () => {
-    const fallback = getThisMonthRange()
-    const r = { from: from || fallback.from, to: to || fallback.to }
-    setPreset('custom')
-    onApply({ from: r.from, to: r.to, preset: 'custom' })
-    setOpen(false)
+  const handleCustomDateChange = (field: 'from' | 'to', value: string) => {
+    if (field === 'from') {
+      setDraftFrom(value)
+    } else {
+      setDraftTo(value)
+    }
   }
 
-  const presetBtn = (p: ReportRangePreset, text: string) => (
-    <button
-      key={p}
-      onClick={() => applyPreset(p)}
-      className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all ${preset === p ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant hover:text-on-surface'}`}
-    >
-      {text}
-    </button>
-  )
+  const handleApply = () => {
+    if (!draftFrom || !draftTo) return
+    setActive('custom')
+    setAppliedFrom(draftFrom)
+    setAppliedTo(draftTo)
+    onApply({ from: draftFrom, to: draftTo })
+    setIsOpen(false)
+  }
+
+  const handleClear = () => {
+    setActive(null)
+    setAppliedFrom('')
+    setAppliedTo('')
+    onApply(null)
+    setIsOpen(false)
+  }
+
+  const getDisplayLabel = () => {
+    if (active && active !== 'custom') return PRESET_LABELS[active]
+    if (active === 'custom' && appliedFrom && appliedTo) return `${appliedFrom} - ${appliedTo}`
+    if (!active) return 'All Time'
+    return 'This Month'
+  }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="btn-ghost px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5"
-        style={{ border: '1px solid var(--border-strong)' }}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+          isOpen
+            ? 'border-primary bg-primary/5 text-primary'
+            : 'border-outline-variant/30 bg-surface text-on-surface-variant hover:bg-surface-container'
+        }`}
       >
-        <CalendarDays size={14} /> {label}
+        <Calendar size={16} />
+
+        <span className="text-sm font-medium">
+          {getDisplayLabel()}
+        </span>
+
+        {isOpen && <X size={14} className="ml-1" />}
       </button>
 
-      {open && (
-        <div className="absolute right-0 mt-2 z-50 section-card p-4" style={{ width: '320px', boxShadow: '0 8px 24px var(--shadow)' }}>
-          <p className="text-sm font-semibold mb-3" style={{ color: 'var(--on-surface)' }}>Select Date Range</p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {presetBtn('thisMonth', 'This Month')}
-            {presetBtn('lastMonth', 'Last Month')}
-            {presetBtn('thisWeek', 'This Week')}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: 'var(--muted)' }}>From</label>
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input-field" />
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-2 w-[420px] bg-surface rounded-xl shadow-lg border border-outline-variant/20 z-50 p-4">
+
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Calendar
+                size={16}
+                className="text-primary"
+              />
+
+              <h3 className="font-semibold text-sm text-on-surface">
+                Select Date Range
+              </h3>
             </div>
+
+            {(appliedFrom || appliedTo) && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-xs text-on-surface-variant hover:text-error transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Report presets: This Month / Last Month / This Week */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {(Object.entries(PRESET_LABELS) as [Preset, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handlePreset(key)}
+                className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                  active === key
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-surface-container-low text-on-surface-variant border-outline-variant/20 hover:bg-surface-container'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Date Range */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: 'var(--muted)' }}>To</label>
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input-field" />
+              <label className="block text-xs font-medium text-on-surface-variant mb-1.5">
+                From
+              </label>
+
+              <input
+                type="date"
+                value={draftFrom}
+                onChange={(e) =>
+                  handleCustomDateChange(
+                    'from',
+                    e.target.value
+                  )
+                }
+                className="input-field w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-on-surface-variant mb-1.5">
+                To
+              </label>
+
+              <input
+                type="date"
+                value={draftTo}
+                onChange={(e) =>
+                  handleCustomDateChange(
+                    'to',
+                    e.target.value
+                  )
+                }
+                className="input-field w-full"
+              />
             </div>
           </div>
-          <div className="flex justify-end mt-3">
-            <button onClick={applyCustom} className="btn-primary px-3 py-1.5 text-xs">Apply Custom Dates</button>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={!draftFrom || !draftTo}
+              className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+            >
+              Apply Custom Dates
+            </button>
           </div>
+
         </div>
       )}
     </div>

@@ -22,17 +22,14 @@ export async function fetchDashboardMetrics(signal?: AbortSignal): Promise<Dashb
 
   const today = getTodayString()
 
-  // PENDING REPAIRS = "In Progress" entries from the Repair Kanban
   const pendingRepairs = repairs.filter(
     (r: any) => r.status === 'In Progress' || r.status === 'InProgress',
   ).length
 
-  // DEVICE REQUESTS = active only (deleted / split-original entries excluded)
   const deviceRequests = requests.filter(
     (r: any) => r.isDeleted !== true && r.is_deleted !== true,
   ).length
 
-  // RESOLVED TODAY = repairs resolved/closed with resolved date = today
   const resolvedToday = repairs.filter((r: any) => {
     const resolvedOn = onlyDate(r.resolvedDate ?? r.resolved_date)
     return (r.status === 'Resolved' || r.status === 'Closed') && resolvedOn === today
@@ -41,7 +38,7 @@ export async function fetchDashboardMetrics(signal?: AbortSignal): Promise<Dashb
   return {
     totalRepairs: repairs.length,
     pendingRepairs,
-    deviceRequests,
+    deviceRequests, 
     resolvedToday,
   }
 }

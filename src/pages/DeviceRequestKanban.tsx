@@ -88,7 +88,7 @@ export default function DeviceRequestKanban() {
     return getLocalDateString(d)
   }
 
-  const [dateFrom, setDateFrom] = useState(getOneMonthAgo())
+  const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('default')
 
