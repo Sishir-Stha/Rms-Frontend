@@ -46,11 +46,32 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'Fulfilled', label: 'Fulfilled', color: '#0891b2' },
 ]
 
+// Identify the special users
+const getUserKey = (email?: string | null, name?: string | null): 'sishir' | 'sudharshan' | 'anjana' | 'umesh' | 'other' => {
+  const e = (email || '').trim().toLowerCase()
+  const n = (name || '').trim().toLowerCase()
+  if (e === 'sishir@yetiairlines.com' || n.includes('sishir')) return 'sishir'
+  if (e === 'sudharshan@yetiairlines.com' || n.includes('sudharshan')) return 'sudharshan'
+  if (e === 'anjana@yetiairlines.com' || n.includes('anjana')) return 'anjana'
+  if (e.includes('umesh') || n.includes('umesh')) return 'umesh'
+  return 'other'
+}
+
+const getRestrictionMessage = (userKey: string, from: RequestApprovalStatus, to: RequestApprovalStatus): string | null => {
+  const msg = `You are not allowed to move this request from ${formatDeviceRequestStatus(from)} to ${formatDeviceRequestStatus(to)}`
+  if (userKey === 'other' && (from === 'Approved' || from === 'Fulfilled') && (to === 'Requested' || to === 'Pending' || to === 'Rejected')) return msg
+  if (userKey === 'sudharshan' && (from === 'Pending' || from === 'Approved' || from === 'Rejected') && to === 'Fulfilled') return msg
+  if (userKey === 'anjana' && from === 'Approved' && (to === 'Pending' || to === 'Rejected')) return msg
+  if (userKey === 'umesh' && (from === 'Requested' || from === 'Pending' || from === 'Rejected') && (to === 'Approved' || to === 'Fulfilled')) return msg
+  return null
+}
+
 export default function DeviceRequestKanban() {
   const { currentUser } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
   const access = getUserAccess(currentUser?.email)
+  const userKey = getUserKey(currentUser?.email, currentUser?.name)
 
   const [cards, setCards] = useState<DeviceRequestListItem[]>([])
   const [dragging, setDragging] = useState<number | null>(null)
@@ -143,14 +164,14 @@ export default function DeviceRequestKanban() {
     return unsubscribe
   }, [loadBoard])
 
-  const isAnjana = currentUser?.email?.trim().toLowerCase() === 'anjana@yetiairlines.com'
+  const isAnjana = userKey === 'anjana'
 
-  const canDragCard = (status: RequestApprovalStatus): boolean => {
+    const canDragCard = (status: RequestApprovalStatus): boolean => {
     const email = currentUser?.email
     if (!canManageKanban(email)) return false
-    const user = email?.trim().toLowerCase()
-    if (user === 'anjana@yetiairlines.com' && (status === 'Pending' || status === 'Rejected')) return false
-    if (user === 'sudharshan@yetiairlines.com' && status === 'Fulfilled') return false
+    if (userKey === 'other') return false
+    if (userKey === 'anjana' && (status === 'Pending' || status === 'Rejected')) return false
+    if (userKey === 'sudharshan' && status === 'Fulfilled') return false
     return COLUMNS.some((col) => canMoveKanbanStatus(email, status, col.id))
   }
 
@@ -169,6 +190,8 @@ export default function DeviceRequestKanban() {
     if (dragging !== null) {
       const draggedCard = cards.find((c) => c.requestId === dragging)
       if (draggedCard) {
+        // Don't even highlight restricted targets
+        if (getRestrictionMessage(userKey, draggedCard.approvalStatus, colId)) return
         if (!canMoveKanbanStatus(currentUser?.email, draggedCard.approvalStatus, colId)) return
       }
     }
@@ -210,21 +233,20 @@ export default function DeviceRequestKanban() {
 
       if (col === 'Fulfilled' && currentStatus === 'Approved') {
         const anyCard = targetCard as any
+
+        const expenseEntered = Number(anyCard.expenseWithoutVat ?? anyCard.expense_without_vat ?? 0) > 0
+        if (!expenseEntered) {
+          setCards(previousCards)
+          showToast('Please fill the Expense section in the device detail before fulfilling.', 'error')
+          return
+        }
+
         const planned = Number(anyCard.plannedFulfilledQty)
         const hasPlanned = anyCard.plannedFulfilledQty != null && !isNaN(planned) && planned > 0 && planned < targetCard.quantity
-        let qty = targetCard.quantity
         if (hasPlanned) {
-          qty = planned
-        } else {
-          const qtyStr = window.prompt(`How many of ${targetCard.quantity} units are fulfilled now?`, String(targetCard.quantity))
-          if (qtyStr === null) { setCards(previousCards); return }
-          qty = parseInt(qtyStr, 10)
-          if (isNaN(qty) || qty < 1 || qty > targetCard.quantity) { showToast('Invalid fulfilled quantity', 'error'); setCards(previousCards); return }
-        }
-        if (qty < targetCard.quantity) {
           if (!currentUser) { setCards(previousCards); showToast('You must be logged in', 'error'); return }
-          await processSplitFulfillment(requestId, { fulfilled_quantity: qty, performed_by: Number(currentUser?.id || 0) })
-          showToast(`Split done: ${qty} fulfilled, ${targetCard.quantity - qty} remaining in Approved`, 'success')
+          await processSplitFulfillment(requestId, { fulfilled_quantity: planned, performed_by: Number(currentUser?.id || 0) })
+          showToast(`Split done: ${planned} fulfilled, ${targetCard.quantity - planned} remaining in Approved`, 'success')
           return
         }
       }
@@ -248,11 +270,28 @@ export default function DeviceRequestKanban() {
       return
     }
     const targetCard = cards.find((card) => card.requestId === dragging)
-    if (!targetCard || !canMoveKanbanStatus(currentUser?.email, targetCard.approvalStatus, colId)) {
+    if (!targetCard) { setDragging(null); setDragOver(null); return }
+
+    // Dropping on same column = no-op
+    if (targetCard.approvalStatus === colId) { setDragging(null); setDragOver(null); return }
+
+    // NEW: per-user restriction popup
+    const restriction = getRestrictionMessage(userKey, targetCard.approvalStatus, colId)
+    if (restriction) {
+      showToast(restriction, 'error')
       setDragging(null)
       setDragOver(null)
       return
     }
+
+    // Any other disallowed move also gets a popup now
+    if (!canMoveKanbanStatus(currentUser?.email, targetCard.approvalStatus, colId)) {
+      showToast(`You are not allowed to move this request from ${formatDeviceRequestStatus(targetCard.approvalStatus)} to ${formatDeviceRequestStatus(colId)}`, 'error')
+      setDragging(null)
+      setDragOver(null)
+      return
+    }
+
     if (colId === 'Rejected') {
       setConfirm({ requestId: dragging, col: colId })
     } else {
